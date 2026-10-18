@@ -1,0 +1,33 @@
+{
+	"include": [
+		"$(MODDABLE)/examples/manifest_mod.json",
+		"$(MODDABLE)/examples/manifest_typings.json"
+	],
+	"modules": {
+		"*": [
+			"./main",
+			"./assets",
+			"./motion",
+			"./timers",
+			"./theme",
+			"./prompts",
+			"./home",
+			"./carousel",
+			"./thinking",
+			"./transition",
+			"./weather",
+			"./chat"
+		]
+	},
+	"ffi": {
+		"sources": [
+			"./content_size.c"
+		],
+		"functions": {
+			"contentSize": {
+				"arguments": [],
+				"returns": "int32_t"
+			}
+		}
+	}
+}

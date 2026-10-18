@@ -1,0 +1,542 @@
+{
+  "name": "index-alloy",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Index",
+  "keywords": [
+    "pebble-app"
+  ],
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Index Alloy",
+    "uuid": "f77fce2d-6016-47d5-84db-984335039681",
+    "projectType": "moddable",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "capabilities": [
+      "microphone"
+    ],
+    "messageKeys": [
+      "dummy"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "raw",
+          "name": "INDEX_HOME_ICONS",
+          "file": "pdc/index-home-icons-light.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_BUBBLE_GREETING",
+          "file": "pdc/index-bubble-greeting.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_BUBBLE_TAIL",
+          "file": "pdc/index-bubble-tail.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEATHER_DISC",
+          "file": "pdc/index-weather-disc.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_PEN",
+          "file": "pdc/index-pen.pdc"
+        },
+        {
+          "type": "bitmap",
+          "name": "INDEX_WEATHER_ICON",
+          "file": "images/weather-partly-cloudy-50.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "INDEX_WEATHER_ICON_TINY",
+          "file": "images/weather-partly-cloudy-25.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEATHER_LARGE",
+          "file": "pdc/index-weather-partly-cloudy-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_ALARM_ICON",
+          "file": "pdc/index-widget-alarm.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_ALARM_LARGE",
+          "file": "pdc/index-widget-alarm-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_BEEPER_ICON",
+          "file": "pdc/index-widget-beeper.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_BEEPER_LARGE",
+          "file": "pdc/index-widget-beeper-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TIMER_ICON",
+          "file": "pdc/index-widget-timer.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TIMER_LARGE",
+          "file": "pdc/index-widget-timer-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_REMINDER_ICON",
+          "file": "pdc/index-widget-reminder.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_REMINDER_LARGE",
+          "file": "pdc/index-widget-reminder-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_NOTE_ICON",
+          "file": "pdc/index-widget-note.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_NOTE_LARGE",
+          "file": "pdc/index-widget-note-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TOOL_ICON",
+          "file": "pdc/index-widget-tool.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TOOL_LARGE",
+          "file": "pdc/index-widget-tool-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_00",
+          "file": "pdc/thinking/frame-00.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_01",
+          "file": "pdc/thinking/frame-01.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_02",
+          "file": "pdc/thinking/frame-02.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_03",
+          "file": "pdc/thinking/frame-03.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_04",
+          "file": "pdc/thinking/frame-04.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_05",
+          "file": "pdc/thinking/frame-05.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_06",
+          "file": "pdc/thinking/frame-06.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_07",
+          "file": "pdc/thinking/frame-07.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_08",
+          "file": "pdc/thinking/frame-08.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_09",
+          "file": "pdc/thinking/frame-09.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_10",
+          "file": "pdc/thinking/frame-10.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_11",
+          "file": "pdc/thinking/frame-11.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_12",
+          "file": "pdc/thinking/frame-12.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_13",
+          "file": "pdc/thinking/frame-13.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_14",
+          "file": "pdc/thinking/frame-14.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_15",
+          "file": "pdc/thinking/frame-15.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_16",
+          "file": "pdc/thinking/frame-16.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_17",
+          "file": "pdc/thinking/frame-17.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_18",
+          "file": "pdc/thinking/frame-18.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_19",
+          "file": "pdc/thinking/frame-19.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_20",
+          "file": "pdc/thinking/frame-20.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_21",
+          "file": "pdc/thinking/frame-21.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_22",
+          "file": "pdc/thinking/frame-22.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_23",
+          "file": "pdc/thinking/frame-23.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_24",
+          "file": "pdc/thinking/frame-24.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_25",
+          "file": "pdc/thinking/frame-25.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_26",
+          "file": "pdc/thinking/frame-26.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_27",
+          "file": "pdc/thinking/frame-27.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_28",
+          "file": "pdc/thinking/frame-28.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_29",
+          "file": "pdc/thinking/frame-29.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_30",
+          "file": "pdc/thinking/frame-30.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_31",
+          "file": "pdc/thinking/frame-31.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_32",
+          "file": "pdc/thinking/frame-32.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_33",
+          "file": "pdc/thinking/frame-33.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_34",
+          "file": "pdc/thinking/frame-34.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_35",
+          "file": "pdc/thinking/frame-35.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_36",
+          "file": "pdc/thinking/frame-36.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_37",
+          "file": "pdc/thinking/frame-37.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_38",
+          "file": "pdc/thinking/frame-38.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_39",
+          "file": "pdc/thinking/frame-39.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_40",
+          "file": "pdc/thinking/frame-40.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_41",
+          "file": "pdc/thinking/frame-41.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_42",
+          "file": "pdc/thinking/frame-42.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_43",
+          "file": "pdc/thinking/frame-43.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_44",
+          "file": "pdc/thinking/frame-44.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_45",
+          "file": "pdc/thinking/frame-45.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_46",
+          "file": "pdc/thinking/frame-46.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_47",
+          "file": "pdc/thinking/frame-47.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_48",
+          "file": "pdc/thinking/frame-48.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_49",
+          "file": "pdc/thinking/frame-49.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_50",
+          "file": "pdc/thinking/frame-50.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_51",
+          "file": "pdc/thinking/frame-51.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_52",
+          "file": "pdc/thinking/frame-52.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_53",
+          "file": "pdc/thinking/frame-53.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_54",
+          "file": "pdc/thinking/frame-54.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_55",
+          "file": "pdc/thinking/frame-55.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_56",
+          "file": "pdc/thinking/frame-56.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_57",
+          "file": "pdc/thinking/frame-57.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_58",
+          "file": "pdc/thinking/frame-58.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_59",
+          "file": "pdc/thinking/frame-59.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_60",
+          "file": "pdc/thinking/frame-60.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_61",
+          "file": "pdc/thinking/frame-61.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_62",
+          "file": "pdc/thinking/frame-62.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_63",
+          "file": "pdc/thinking/frame-63.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_64",
+          "file": "pdc/thinking/frame-64.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_65",
+          "file": "pdc/thinking/frame-65.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_66",
+          "file": "pdc/thinking/frame-66.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_67",
+          "file": "pdc/thinking/frame-67.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_68",
+          "file": "pdc/thinking/frame-68.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_69",
+          "file": "pdc/thinking/frame-69.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_70",
+          "file": "pdc/thinking/frame-70.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_71",
+          "file": "pdc/thinking/frame-71.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_72",
+          "file": "pdc/thinking/frame-72.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_73",
+          "file": "pdc/thinking/frame-73.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_74",
+          "file": "pdc/thinking/frame-74.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_75",
+          "file": "pdc/thinking/frame-75.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_76",
+          "file": "pdc/thinking/frame-76.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_77",
+          "file": "pdc/thinking/frame-77.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_78",
+          "file": "pdc/thinking/frame-78.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_79",
+          "file": "pdc/thinking/frame-79.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_THINKING_80",
+          "file": "pdc/thinking/frame-80.pdc"
+        }
+      ]
+    }
+  }
+}
