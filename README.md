@@ -16,7 +16,7 @@ Asking pushes things in from the bottom. The recording's waveform runs in the
 user's blue bubble, then the whole transcribed message comes in at once. While Index thinks,
 the microphone's ring slides to the bottom left and turns into the thinking cube, like a
 messaging app's avatar, with Index's typing bubble ("•••", the dots darkening in turn)
-beside it. When the result comes in, it takes the words' place: the history keeps
+beside it: the cube's height, filling the row, drawn like the cube with 2px black lines. When the result comes in, it takes the words' place: the history keeps
 results, not questions. A widget's icon unfolds out of the cube's dot (after the
 notification peek), then flies into its card's header as the card rises in. The ring
 then grows back at the centre.

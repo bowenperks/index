@@ -193,6 +193,11 @@
         },
         {
           "type": "raw",
+          "name": "INDEX_TYPING_BUBBLE",
+          "file": "pdc/index-typing-bubble.pdc"
+        },
+        {
+          "type": "raw",
           "name": "INDEX_THINKING_00",
           "file": "pdc/thinking/frame-00.pdc"
         },

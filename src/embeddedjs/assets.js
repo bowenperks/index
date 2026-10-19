@@ -33,5 +33,6 @@ export const TRANSLATE_ICON = 29;
 export const TRANSLATE_LARGE = 30;
 export const MIC = 31;
 export const STREET_MAP = 32;
-export const THINKING_FIRST = 33;
+export const TYPING_BUBBLE = 33;
+export const THINKING_FIRST = 34;
 export const THINKING_FRAMES = 81;

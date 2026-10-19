@@ -21,6 +21,7 @@ Writes, from the committed artwork in resources/:
 """
 from pathlib import Path
 import json
+import math
 import struct
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,6 +161,42 @@ def street_map():
     return image(186, 100, commands)
 
 
+def inset(points, distance):
+    """A closed polygon (clockwise, y down) moved `distance` inwards: each edge offset, the
+    offset edges meeting at mitred corners."""
+    lines = []
+    for (x0, y0), (x1, y1) in zip(points, points[1:] + points[:1]):
+        length = math.hypot(x1 - x0, y1 - y0)
+        nx, ny = -(y1 - y0) / length, (x1 - x0) / length   # inward for clockwise
+        lines.append(((x0 + nx * distance, y0 + ny * distance), (x1 - x0, y1 - y0)))
+    moved = []
+    for ((ax, ay), (adx, ady)), ((bx, by), (bdx, bdy)) in zip(lines[-1:] + lines[:-1], lines):
+        cross = adx * bdy - ady * bdx
+        t = ((bx - ax) * bdy - (by - ay) * bdx) / cross
+        moved.append((ax + adx * t, ay + ady * t))
+    return moved
+
+
+def typing_bubble():
+    # Index's typing bubble beside the thinking cube, built like the cube itself: a black
+    # shape with a white one 2px inside it, so its 2px lines match the cube's. The body runs
+    # from x 5 for 99px and is 66px tall; the tail's tip at (0, 69) lands on the cube's
+    # bottom as the body's top meets the cube's top (the cube spans 70px at rest).
+    left, top, right, bottom, radius, weight = 5, 0, 104, 66, 8, 2
+    def arc(cx, cy, start):
+        return [(cx + radius * math.cos(math.radians(start + 15 * step)),
+                 cy + radius * math.sin(math.radians(start + 15 * step))) for step in range(7)]
+    outer = (arc(left + radius, top + radius, 180) + arc(right - radius, top + radius, 270) +
+             arc(right - radius, bottom - radius, 0) +
+             # The bottom edge runs into the tail, which sweeps down and left to its tip and
+             # back up into the left edge, as Index's reply bubbles' tails do.
+             [(left + 13, bottom), (0, bottom + 3), (left, bottom - 9)])
+    def path(points, fill):
+        return (struct.pack('<5B2H', 3, 0, 0, 0, fill, 0, len(points)) +
+                b''.join(struct.pack('<2h', round(x * 8), round(y * 8)) for x, y in points))
+    return image(right + 1, bottom + 4, [path(outer, BLACK), path(inset(outer, weight), WHITE)])
+
+
 def microphone():
     # The voice input's microphone, centred in the 20px thinking ring: a solid capsule in
     # its U-shaped holder on a short stand, black on the page.
@@ -212,6 +249,7 @@ for widget in ('alarm', 'beeper', 'timer', 'reminder', 'note', 'tool', 'pin') + 
 STATIC += [
     ('MIC', 'pdc/index-mic.pdc', 'raw'),
     ('STREET_MAP', 'pdc/index-street-map.pdc', 'raw'),
+    ('TYPING_BUBBLE', 'pdc/index-typing-bubble.pdc', 'raw'),
 ]
 
 
@@ -222,6 +260,7 @@ def build():
     (PDC / 'index-pen.pdc').write_bytes(pen())
     (PDC / 'index-mic.pdc').write_bytes(microphone())
     (PDC / 'index-street-map.pdc').write_bytes(street_map())
+    (PDC / 'index-typing-bubble.pdc').write_bytes(typing_bubble())
     for name, shapes in ICONS.items():
         (PDC / f'index-widget-{name}.pdc').write_bytes(icon(shapes, 1, 2))
         (PDC / f'index-widget-{name}-large.pdc').write_bytes(icon(shapes, LARGE_SIZE / ICON_SIZE, 4))
