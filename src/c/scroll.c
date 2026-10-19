@@ -110,9 +110,92 @@ static Stretch *prv_stretch(uint32_t id) {
   return slot;
 }
 
+// Cheaper still: as a step starts, each visible icon stands at rest in its cutout, on
+// white, so its pixels are copied off the screen (iconCapture) and each frame stretched
+// by rows into place, non-white pixels only, in a fraction of what drawing the vector art
+// costs (3-5 ms an icon on the watch). The vector path stays for an icon that could not
+// be captured: partly off screen, or no memory for it.
+#define CAPTURE_WIDTH 40
+#define CAPTURE_HEIGHT 36
+typedef struct {
+  uint32_t id;
+  uint8_t *pixels;
+} Capture;
+static Capture s_capture[STRETCH_SLOTS];
+static uint8_t s_capture_next;
+
+static Capture *prv_capture(uint32_t id) {
+  for (int i = 0; i < STRETCH_SLOTS; i++) {
+    if (s_capture[i].pixels && s_capture[i].id == id) return &s_capture[i];
+  }
+  return NULL;
+}
+
+int32_t iconCapture(int32_t id, int32_t x, int32_t y) {
+  if (!s_ctx || prv_capture(id)) return s_ctx && prv_capture(id);
+  if (heap_bytes_free() < HEAP_RESERVE + CAPTURE_WIDTH * CAPTURE_HEIGHT) return 0;
+  GBitmap *buffer = graphics_capture_frame_buffer(s_ctx);
+  if (!buffer) return 0;
+  const GRect bounds = gbitmap_get_bounds(buffer);
+  const uint16_t stride = gbitmap_get_bytes_per_row(buffer);
+  int32_t kept = 0;
+  if (x >= 0 && y >= bounds.origin.y && x + CAPTURE_WIDTH <= bounds.size.w &&
+      y + CAPTURE_HEIGHT <= bounds.origin.y + bounds.size.h) {
+    Capture *slot = &s_capture[s_capture_next];
+    s_capture_next = (s_capture_next + 1) % STRETCH_SLOTS;
+    free(slot->pixels);
+    slot->pixels = malloc(CAPTURE_WIDTH * CAPTURE_HEIGHT);
+    if (slot->pixels) {
+      const uint8_t *data = gbitmap_get_data(buffer);
+      for (int32_t row = 0; row < CAPTURE_HEIGHT; row++) {
+        memcpy(slot->pixels + row * CAPTURE_WIDTH, data + (y + row) * stride + x, CAPTURE_WIDTH);
+      }
+      slot->id = id;
+      kept = 1;
+    }
+  }
+  graphics_release_frame_buffer(s_ctx, buffer);
+  return kept;
+}
+
+// Blits the captured icon `height` rows tall from (x, y), each output row the nearest
+// source row, within the rows being painted (the caller's clip: a GContext is opaque to
+// an app, so the clip comes with the call), white left alone.
+static int32_t prv_blit_capture(Capture *capture, int32_t x, int32_t y, int32_t height,
+                                int32_t clipTop, int32_t clipBottom) {
+  GBitmap *buffer = graphics_capture_frame_buffer(s_ctx);
+  if (!buffer) return 0;
+  const GRect bounds = gbitmap_get_bounds(buffer);
+  const uint16_t stride = gbitmap_get_bytes_per_row(buffer);
+  uint8_t *data = gbitmap_get_data(buffer);
+  int32_t top = y, bottom = y + height;
+  if (top < clipTop) top = clipTop;
+  if (bottom > clipBottom) bottom = clipBottom;
+  if (top < bounds.origin.y) top = bounds.origin.y;
+  if (bottom > bounds.origin.y + bounds.size.h) bottom = bounds.origin.y + bounds.size.h;
+  int32_t left = x, right = x + CAPTURE_WIDTH;
+  if (left < 0) left = 0;
+  if (right > bounds.size.w) right = bounds.size.w;
+  for (int32_t row = top; row < bottom; row++) {
+    const int32_t source = (row - y) * CAPTURE_HEIGHT / height;
+    const uint8_t *in = capture->pixels + source * CAPTURE_WIDTH + (left - x);
+    uint8_t *out = data + row * stride + left;
+    for (int32_t i = 0; i < right - left; i++) {
+      if (in[i] != 0xFF) out[i] = in[i];
+    }
+  }
+  graphics_release_frame_buffer(s_ctx, buffer);
+  return 1;
+}
+
 // Returns 0 when the icon could not be drawn (no context yet, or no memory for it).
-int32_t stretchIcon(int32_t id, int32_t x, int32_t y, int32_t height, int32_t natural) {
+int32_t stretchIcon(int32_t id, int32_t x, int32_t y, int32_t height, int32_t natural,
+                    int32_t clipTop, int32_t clipBottom) {
   if (!s_ctx || natural <= 0) return 0;
+  Capture *capture = prv_capture(id);
+  if (capture && height > 0 && natural == CAPTURE_HEIGHT) {
+    return prv_blit_capture(capture, x, y, height, clipTop, clipBottom);
+  }
   Stretch *slot = prv_stretch(id);
   if (!slot) return 0;
   // The scale as Alloy passes it, in 8.8 fixed point.
@@ -134,6 +217,10 @@ int32_t stretchIcon(int32_t id, int32_t x, int32_t y, int32_t height, int32_t na
 }
 
 void stretchRelease(void) {
-  for (int i = 0; i < STRETCH_SLOTS; i++) prv_stretch_free(&s_stretch[i]);
-  s_stretch_next = 0;
+  for (int i = 0; i < STRETCH_SLOTS; i++) {
+    prv_stretch_free(&s_stretch[i]);
+    free(s_capture[i].pixels);
+    s_capture[i].pixels = NULL;
+  }
+  s_stretch_next = s_capture_next = 0;
 }

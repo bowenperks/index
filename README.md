@@ -148,6 +148,13 @@ frames are kept small: a band while only the voice input animates, and, when the
 scrolls, the rows already on the screen are moved natively (`src/c/scroll.c`, through
 the FFI, which keeps the drawing context from the root layer's update proc) and only
 what the scroll exposed is painted: a strip at the top or bottom, the position bar's
-column and, on Up and Down, each card's stretching icon. Poco's `clip()` on Pebble
-restores, when popped, the rectangle it saved when pushed, and `begin()` does not set
-that rectangle: push the whole screen first (see `scrollScreen` in chat.js).
+column and, on Up and Down, a 40px column band over each card's stretching icon (where
+it was and where it is). Drawing an icon's vector art costs 3-5 ms on the watch, so as a
+step starts each visible icon's pixels are copied off the screen, where it rests in its
+white cutout, and each frame stretched into place by rows natively; text and art outside
+the band being painted are skipped before the firmware is asked to lay them out. Poco's
+`clip()` on Pebble restores, when popped, the rectangle it saved when pushed, and
+`begin()` does not set that rectangle: push the whole screen first (see `scrollScreen`
+in chat.js). `INDEX_SCROLLBENCH=1 sh tools/build.sh` makes the app scroll by itself after
+launch and log each scroll's frames and where their time went; `=2` first times the
+firmware's own drawing calls (tools/bench.c).

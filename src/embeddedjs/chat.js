@@ -501,9 +501,13 @@ export default class Chat {
     this.showBar();
     this.scrollAnimation?.unschedule();
     this.scrollTarget = target;
-    // Up or Down again mid-step: the screen's icons belong to the step before, so the
-    // next frame repaints the page rather than work from where they were.
-    if (this.stretch) this.invalidate();
+    // A fresh step: each visible icon stands at rest in its cutout, on white, and its
+    // pixels are kept natively (scroll.c) to be stretched by rows each frame, far cheaper
+    // than drawing the stretched vector art. Up or Down again mid-step: the screen's icons
+    // belong to the step before, so the next frame repaints the page rather than work
+    // from where they were.
+    if (!this.stretch) this.captureIcons();
+    else this.invalidate();
     // `drawn` is the progress of the frame on the screen (scrollScreen).
     const stretch = this.stretch = {from, target, progress: 0, drawn: 0};
     this.scrollAnimation = new Animation(MOOOK_MS, linear, progress => {
@@ -515,6 +519,20 @@ export default class Chat {
     }, () => {
       if (this.stretch === stretch) this.endStep();
     }).schedule();
+  }
+
+  // The icons on the screen (at the offset drawn, which a pending frame may not yet show)
+  // that are wholly on it, copied off it for the step.
+  captureIcons() {
+    const header = this.headerHeight, items = this.items, offset = this.drawnOffset;
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      if (!item.widget || item.shade !== 255 || item === this.landing) continue;
+      const top = item.y - offset + this.iconTop(item);
+      if (top >= header && top + WIDGET_ICON <= HEIGHT) {
+        Natives.iconCapture(WIDGETS[item.widget][0], item.x, top);
+      }
+    }
   }
 
   // The step is over, or cut short: the icons stand straight again, and the stretched
@@ -711,7 +729,8 @@ export default class Chat {
   // built when it stands straight (or the stretched copy could not be made).
   drawIcon(item, top, height) {
     const icon = WIDGETS[item.widget][0];
-    if (height === WIDGET_ICON || !Natives.stretchIcon(icon, item.x, top, height, WIDGET_ICON)) {
+    if (height === WIDGET_ICON ||
+        !Natives.stretchIcon(icon, item.x, top, height, WIDGET_ICON, this.bandTop, this.bandBottom)) {
       render.drawDCI(art(icon), item.x, top);
     }
   }
@@ -772,8 +791,11 @@ export default class Chat {
   // Draws the screen rows from `top` to `bottom`: the whole screen, or a band of it.
   draw(top, bottom, right = WIDTH) {
     const offset = this.offset, items = this.items;
-    // A band's clip starts a row above it (drawBand).
+    // A band's clip starts a row above it (drawBand). The rows are kept for the native
+    // icon blit, which cannot read the context's clip.
     setBand(top - 1, bottom, right);
+    this.bandTop = top - 1;
+    this.bandBottom = bottom;
     // The page is cleared strip by strip, each just before what goes on it, never all at
     // once: the firmware can copy the frame buffer to the display mid-draw (see main.js),
     // and this way it catches at most one item half drawn, not a white screen. An indexed
