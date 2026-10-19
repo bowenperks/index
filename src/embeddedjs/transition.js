@@ -55,8 +55,9 @@ export default class IconTransition {
 
   // Unfolds the PDC resource at (cx, cy) at its own size, then scales it into `to`. The
   // destination can instead be given by `retarget` from the `flying` callback, once the
-  // page has settled where the icon will land.
-  start(resource, cx, cy, to) {
+  // page has settled where the icon will land. With `unfoldOnly` it just unfolds, as the
+  // dictation screen's microphone does, and finishes there.
+  start(resource, cx, cy, to, unfoldOnly) {
     if (this.active) return false;
     this.image = new Poco.PebbleDrawCommandImage(resource);
     this.strokes = [];
@@ -68,8 +69,9 @@ export default class IconTransition {
     this.elapsed = 0;
     this.flyingStarted = false;
     this.active = true;
-    this.animation = new Animation(TOTAL_MS, linear, progress => {
-      this.elapsed = Math.trunc(progress * TOTAL_MS / NORMAL_MAX);
+    const total = unfoldOnly ? UNFOLD_MS : TOTAL_MS;
+    this.animation = new Animation(total, linear, progress => {
+      this.elapsed = Math.trunc(progress * total / NORMAL_MAX);
       if (!this.flyingStarted && this.elapsed >= UNFOLD_MS + HOLD_MS) {
         this.flyingStarted = true;
         this.flying?.();

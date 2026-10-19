@@ -20,6 +20,7 @@ Writes, from the committed artwork in resources/:
     python3 tools/build_assets.py
 """
 from pathlib import Path
+from xml.etree import ElementTree
 import json
 import math
 import struct
@@ -236,18 +237,37 @@ def typing_bubble():
     return image(right + 1, bottom + 1, [path(outer, BLACK), path(inset(outer, weight), WHITE)])
 
 
+MIC_SIZE = 36
+
+
 def microphone():
-    # The voice input's microphone, centred in the 20px thinking ring: a solid capsule in
-    # its U-shaped holder on a short stand, black on the page.
-    capsule = [(8 + 3.5 * x, y) for x, y in (
-        (0, 1), (0.7, 1.3), (1, 2.5), (1, 11.5), (0.7, 12.7), (0, 13), (-0.7, 12.7), (-1, 11.5),
-        (-1, 2.5), (-0.7, 1.3))]
-    holder = [(1.5, 9), (2, 12), (3.5, 14.5), (5.5, 16), (8, 16.5), (10.5, 16), (12.5, 14.5),
-              (14, 12), (14.5, 9)]
-    path = lambda points, fill, open_path: (struct.pack('<5B2H', 3, 0, BLACK, 2, fill, int(open_path), len(points)) +
-                                            b''.join(struct.pack('<2h', round(x * 8), round(y * 8)) for x, y in points))
-    return image(16, 23, [path(capsule, BLACK, False), path(holder, 0, True),
-                          path([(8, 16.5), (8, 21)], 0, True), path([(4.5, 21.5), (11.5, 21.5)], 0, True)])
+    # The voice input's microphone: Pebble's own, the one the system dictation screen shows
+    # (VOICE_MICROPHONE_LARGE). resources/svg/Pebble_80x80_Microphone.svg is a copy of
+    # PebbleOS's resources/normal/snowy/images/Pebble_80x80_Microphone.svg (Apache-2.0,
+    # Google LLC). Its shapes are all straight (a polygon, lines and a polyline), converted
+    # here as PebbleOS's svg2commands would, scaled from 80px to 36px: its 4px and 3px
+    # strokes become 2px and 1px, keeping their proportions.
+    scale = MIC_SIZE / 80
+    svg = ElementTree.parse(ROOT / 'resources/svg/Pebble_80x80_Microphone.svg').getroot()
+    commands = []
+    for element in svg:
+        tag = element.tag.split('}')[-1]
+        if tag == 'line':
+            points = [(float(element.get('x1')), float(element.get('y1'))),
+                      (float(element.get('x2')), float(element.get('y2')))]
+        elif tag in ('polygon', 'polyline'):
+            values = [float(value) for value in element.get('points').replace(',', ' ').split()]
+            points = list(zip(values[::2], values[1::2]))
+            if tag == 'polygon' and points[0] == points[-1]:
+                points.pop()
+        else:
+            continue
+        fill = WHITE if element.get('fill', 'none').upper() == '#FFFFFF' else 0
+        stroke = max(1, round(float(element.get('stroke-width', '1')) * scale))
+        commands.append(struct.pack('<5B2H', 3, 0, BLACK, stroke, fill, int(tag != 'polygon'), len(points)) +
+                        b''.join(struct.pack('<2h', round(x * scale * 8), round(y * scale * 8))
+                                 for x, y in points))
+    return image(MIC_SIZE, MIC_SIZE, commands)
 
 
 def thinking_frames():

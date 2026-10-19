@@ -1,29 +1,36 @@
-// The voice input at the end of Index's page: a microphone inside the thinking ring, which
-// sends out a slow ping while it waits and swells with the voice while it listens; and the
-// recording's waveform, which runs inside the user's bubble.
+// The voice input at the end of Index's page: Pebble's own microphone (the dictation
+// screen's), which sends out a slow ping while it waits; and the recording's waveform,
+// which runs inside the user's bubble.
 import Poco from "commodetto/Poco";
+import Debug from "debug";
 import {MIC} from "assets";
-import {render, WHITE, BLACK, DARK_GRAY, LIGHT_GRAY} from "theme";
+import {render, WHITE, DARK_GRAY, LIGHT_GRAY} from "theme";
 
-export const RING = 20;           // the thinking ring's resting radius, in pixels
-const STROKE = 3;                 // the ring's width, as drawRing's coverage gives it
-const PING_REACH = 12;            // how far past the ring a ping travels
+export const MIC_SIZE = 36;       // the microphone's art, square
+const PING_FROM = 21;             // where a ping starts, just clear of the microphone
+const PING_REACH = 12;            // how far it travels
 
 let glyph;
 
-// The ring and microphone centred on (cx, cy). `radius` is the ring's (RING at rest, more
-// while a voice is loud); `ping` is the outgoing ping's progress, 0-1024, or undefined.
-export function drawMic(cx, cy, radius, ping) {
+// The microphone centred on (cx, cy). `ping` is the outgoing ping's progress, 0-1024, or
+// undefined; `scale` shrinks the microphone (as it turns into the thinking cube's dot).
+export function drawMic(cx, cy, ping, scale = 1) {
   if (ping !== undefined && ping < 1024) {
-    // A thin ring that leaves the microphone's and fades, dark then light, as it goes.
-    const reach = radius + 1 + Math.trunc(PING_REACH * ping / 1024);
+    // A thin ring that leaves the microphone and fades, dark then light, as it goes.
+    const reach = PING_FROM + Math.trunc(PING_REACH * ping / 1024);
     render.drawCircle(ping < 512 ? DARK_GRAY : LIGHT_GRAY, cx, cy, reach);
     render.drawCircle(WHITE, cx, cy, reach - 2);
   }
-  render.drawCircle(BLACK, cx, cy, radius);
-  render.drawCircle(WHITE, cx, cy, radius - STROKE);
-  glyph ??= new Poco.PebbleDrawCommandImage(MIC);
-  render.drawDCI(glyph, cx - (glyph.width >> 1), cy - (glyph.height >> 1));
+  if (scale === 1) {
+    glyph ??= new Poco.PebbleDrawCommandImage(MIC);
+    render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
+    return;
+  }
+  // A scaled copy is native memory XS cannot see: collect the last one before making it.
+  Debug.gc();
+  const small = new Poco.PebbleDrawCommandImage(MIC).clone().scale(scale);
+  const half = Math.trunc(MIC_SIZE * scale / 2);
+  render.drawDCI(small, cx - half, cy - half);
 }
 
 // A live recording's waveform: bars scroll in from the right, their heights following a
@@ -52,10 +59,6 @@ export class Waveform {
     }
     this.levels.copyWithin(0, 1);
     this.levels[BARS - 1] = level;
-  }
-
-  get level() {
-    return this.levels[BARS - 1];
   }
 
   get width() {

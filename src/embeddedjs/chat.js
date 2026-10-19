@@ -1,13 +1,13 @@
 // Index's one scrolling page, laid out like a messaging app: the history of what Index has
 // done, newest at the bottom, under a slim time bar, and at the very end the voice input,
-// a microphone in the thinking ring. The page opens on the newest results with the
-// microphone beneath them.
+// Pebble's microphone. The page opens on the newest results with the microphone beneath
+// them.
 //
 // Asking pushes things in from the bottom: the recording's waveform in the user's bubble,
-// then the whole transcribed message at once. The microphone's ring then slides to the
-// bottom left and turns into the thinking cube, with Index's typing bubble ("•••") beside
-// it. When the result comes in it takes the words' place, so the history keeps results
-// rather than questions.
+// then the whole transcribed message at once. The microphone then shrinks to a dot at the
+// bottom left, which grows into the thinking cube, with Index's typing bubble ("•••")
+// beside it. When the result comes in it takes the words' place, so the history keeps
+// results rather than questions.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
@@ -15,11 +15,11 @@ import * as assets from "assets";
 import {Animation, NORMAL_MAX, easeInOut, easeOut, now} from "motion";
 import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
         ink, font, drawText, textWidth, measure, resetPen} from "theme";
-import Thinking, {RING_RADIUS_Q8, drawRing} from "thinking";
+import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
-import {drawMic, Waveform, RING} from "mic";
+import {drawMic, Waveform} from "mic";
 import {HISTORY} from "prompts";
 
 const CAPACITY = 10;   // history entries (results and day labels) kept, to bound memory
@@ -42,9 +42,11 @@ const WIDGET_ICON = 36, WIDGET_DOT_RADIUS_Q8 = 4 * 256;   // the notification pe
 const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
 const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
-// The voice input's slot at the end of the page: the ring's centre sits 36px down, so the
-// thinking cube's art (31px above its centre, up to 42 below as it turns) fits inside it.
-const SLOT_HEIGHT = 80, SLOT_CENTRE = 36;
+// The voice input's slot at the end of the page: the microphone's centre sits 36px down,
+// so the thinking cube's art (31px above its centre, up to 42 below as it turns) fits in
+// it. Going to think, the microphone shrinks to a 15% dot, and the cube grows out of a
+// 3px dot.
+const SLOT_HEIGHT = 80, SLOT_CENTRE = 36, MIC_DOT_SCALE = 0.15, MIC_DOT_Q8 = 3 * 256;
 // While Index thinks, the cube sits at the bottom left (its art spans 35px either side of
 // its centre at most). The typing bubble fills the rest of the row, from beside the cube
 // to the user's bubbles' margin, and is the cube's height: its art (tools/build_assets.py)
@@ -61,7 +63,7 @@ const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds. The ping goes out over 15 steps of 80ms, every 26 steps.
 const PING_STEP = 80, PING_STEPS = 15, PING_PERIOD = 26;
 const WAVE_STEP = 70, THINK_AFTER = 300, THINK_MIN = 800;
-const FADE_MS = 200, REVEAL_MS = 300, RISE = 40, REGROW_MS = 260;
+const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
 
 // Each widget: its icon for the cutout and the large one the peek unfolds, and its body
 // if not text.
@@ -112,12 +114,13 @@ export default class Chat {
     this.tail = new Poco.PebbleDrawCommandImage(assets.BUBBLE_TAIL).clone();
     this.thinking = new Thinking(invalidate, () => this.thinkingDone());
     this.transition = new IconTransition(invalidate, () => this.landResult(), () => this.finishTurn());
+    this.micUnfold = new IconTransition(invalidate, undefined, () => this.idle());
     for (const [day, widget, text] of HISTORY) {
       this.items.push(day ? this.size({type: "day", text: day}) : this.makeResult(widget, text));
     }
     this.refreshTime();
     this.layout();
-    this.offset = this.maxOffset;
+    this.offset = this.scrollTarget = this.maxOffset;
   }
 
   // --- the page's entries ------------------------------------------------------------
@@ -261,22 +264,24 @@ export default class Chat {
     this.timer = setTimeout(() => this.slide(), THINK_AFTER);
   }
 
-  // Index starts typing: the microphone's ring slides to the bottom left, where it becomes
-  // the thinking cube, like a messaging app's avatar beside its typing bubble.
+  // Index starts typing: the microphone shrinks to a dot as it slides to the bottom left,
+  // where the dot becomes the thinking cube, like a messaging app's avatar beside its
+  // typing bubble.
   slide() {
     this.phase = "sliding";
     const from = WIDTH >> 1;
     new Animation(SLIDE_MS, easeInOut, progress => {
-      this.ringX = from + Math.trunc((CUBE_X - from) * progress / NORMAL_MAX);
+      this.micX = from + Math.trunc((CUBE_X - from) * progress / NORMAL_MAX);
+      this.micScale = 1 - (1 - MIC_DOT_SCALE) * progress / NORMAL_MAX;
       this.invalidate();
     }, () => this.startThinking()).schedule();
   }
 
-  // The cube turns until the answer is ready (at least one turn), then folds away into a
-  // dot, which a widget's icon unfolds out of.
+  // The cube grows out of the dot and turns until the answer is ready (at least one turn),
+  // then folds away into a dot, which a widget's icon unfolds out of.
   startThinking() {
     this.phase = "thinking";
-    if (!this.thinking.start(RING_RADIUS_Q8)) {
+    if (!this.thinking.start(MIC_DOT_Q8)) {
       this.thinkingDone();
       return;
     }
@@ -340,16 +345,13 @@ export default class Chat {
     if (!this.transition.active) this.finishTurn();
   }
 
-  // The turn is over: the microphone's ring grows back, out of a dot, at the centre.
+  // The turn is over: the microphone unfolds out of a dot at the centre, as the dictation
+  // screen's does, where the page will rest.
   finishTurn() {
     this.landing = undefined;
     this.phase = "regrowing";
-    this.regrowQ8 = WIDGET_DOT_RADIUS_Q8;
-    new Animation(REGROW_MS, easeOut, progress => {
-      this.regrowQ8 = WIDGET_DOT_RADIUS_Q8 +
-        Math.trunc((RING_RADIUS_Q8 - WIDGET_DOT_RADIUS_Q8) * progress / NORMAL_MAX);
-      this.invalidate();
-    }, () => this.idle()).schedule();
+    const slot = this.slotTop - this.scrollTarget + SLOT_CENTRE;
+    if (!this.micUnfold.start(assets.MIC, WIDTH >> 1, slot, undefined, true)) this.idle();
   }
 
   // Between turns, the turn's art is let go and collected at once: its native memory (the
@@ -392,7 +394,7 @@ export default class Chat {
   }
 
   setOffset(offset, animated) {
-    const target = this.clamp(offset);
+    const target = this.scrollTarget = this.clamp(offset);
     const running = this.scrollAnimation?.scheduled;
     this.scrollAnimation?.unschedule();
     this.scrollAnimation = undefined;
@@ -613,9 +615,8 @@ export default class Chat {
     }
   }
 
-  // The voice input: the microphone in its ring (pinging while it waits, swelling with the
-  // voice while it listens), or, while Index thinks, the cube at the bottom left with its
-  // typing bubble.
+  // The voice input: Pebble's microphone (pinging while it waits), or, while Index thinks,
+  // the cube at the bottom left with its typing bubble.
   drawSlot(top) {
     if (top >= HEIGHT) return;
     const cx = WIDTH >> 1, cy = top + SLOT_CENTRE;
@@ -623,12 +624,11 @@ export default class Chat {
       this.thinking.draw(CUBE_X, cy);
       this.drawTyping(cy);
     } else if (this.phase === "sliding") {
-      drawRing(this.ringX ?? cx, cy, RING_RADIUS_Q8, RING_RADIUS_Q8);
+      drawMic(this.micX, cy, undefined, this.micScale);
     } else if (this.phase === "regrowing") {
-      drawRing(cx, cy, this.regrowQ8, this.regrowQ8);
+      this.micUnfold.draw();
     } else if (this.phase !== "answering") {
-      const level = this.waveform ? this.waveform.level >> 6 : 0;
-      drawMic(cx, cy, RING + level, this.pingStep < PING_STEPS ? (this.pingStep << 10) / PING_STEPS | 0 : undefined);
+      drawMic(cx, cy, this.pingStep < PING_STEPS ? (this.pingStep << 10) / PING_STEPS | 0 : undefined);
     }
   }
 
