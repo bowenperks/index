@@ -90,18 +90,38 @@ Animations paint on their existing frame tick.
 
 ## Memory
 
-The app has a 122 KB heap, and it is nearly full. The whole compiled mod is loaded
-into it (about 48 KB), XS's heaps grow into most of the rest (about 48 KB of slots and
-17 KB of chunks) and never shrink, and native art takes what is left. Running the
-whole demo reel leaves about 11 KB free. To keep it that way:
+The app has a 122 KB heap, and it is full. The whole compiled mod is loaded into it
+(about 49 KB), XS's heaps grow into most of the rest (about 50 KB of slots, mostly the
+function objects of all the code, and 17 KB of chunks) and never shrink, and native
+art takes what is left: a few KB. Running out does not raise an error: a native
+allocation fails and the app faults (`App fault! PC: 0`). To stay inside:
 
-- Code size is RAM. `sh tools/xsb_sizes.sh` prints each module's bytecode size.
+- Code size is RAM twice over: in the mod, and as the function objects XS makes for
+  it. `sh tools/xsb_sizes.sh` prints each module's bytecode size. Code a build does
+  not use is removed by `tools/strip.py` (blocks between `// @strip NAME` and
+  `// @endstrip`): the measuring code unless instrumented, dictation from the playtest.
 - Every live object, closure and table entry costs 16-byte slots; prefer code to
-  data tables and keep per-entry properties few.
-- The history keeps 10 entries, each with only its wrapped lines. Text caches are
+  data tables, keep per-entry properties few, and let go of what a turn made as soon
+  as it lands.
+- The history keeps 7 entries, each with only its wrapped lines. Text caches are
   small and never hold word-wrap candidates.
-- Art is looked up per draw, never held, so it is freed once off screen. The map is
-  a vector image: a bitmap of it would take ~9 KB while shown.
+- Art is looked up per draw (two images cached), so it is freed once off screen. The
+  map is a vector image: a bitmap of it would take ~9 KB while shown. Animation frames
+  and clones are native memory XS cannot see, so they are collected every second or
+  third frame: a collection costs 2 ms on the watch.
+- The voice build also holds a dictation session and has the least room (~8 KB free
+  at rest); test the whole reel on it too.
 
 `INDEX_INSTRUMENT=1 sh tools/build.sh` adds XS's memory instrumentation (free app
-heap, chunk, slot and stack use, once a second) to `pebble logs`.
+heap, chunk, slot and stack use, once a second) to `pebble logs`, and a per-turn frame
+profile. Before handing a build over, run the whole reel (ten Select presses through
+`tools/screen.sh`) on a fresh emulator and watch for faults.
+
+## Frame rate
+
+The firmware flushes the whole screen to the display for every frame, whatever the
+app changed, which takes about 40 ms on the watch: no Alloy animation can exceed
+roughly 15-20 frames a second there, however little it draws. Frames are therefore
+paced at a steady two ticks (15 a second, `FRAME_GAP_MS` in main.js); an uneven one
+or two ticks reads as stutter. Partial repaints still matter: they cut the app's own
+drawing from ~25 ms to under 10.
