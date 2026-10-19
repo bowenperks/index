@@ -43,7 +43,7 @@ const SLOT_HEIGHT = 80, SLOT_CENTRE = 36;
 // to the user's bubbles' margin, and is the cube's height: its art (tools/build_assets.py)
 // starts 30px above the cube's centre, level with the cube's top, and its 69px body ends
 // level with the cube's bottom. The body sits 5px right of the art's left edge, which is
-// the tail's tip; its dots are 10px, 20px apart.
+// the tip of its stem, at the top as a messaging app's; its dots are 10px, 20px apart.
 const CUBE_X = 44, TYPING_X = 89, TYPING_TAIL = 5, TYPING_ABOVE = 30;
 const TYPING_WIDTH = 99, TYPING_BODY = 69, TYPING_DOT = 5, TYPING_PITCH = 20;
 const SLIDE_MS = 220, TYPING_FADE_MS = 200, TYPING_STEP_MS = 220;
@@ -626,7 +626,7 @@ export default class Chat {
     }
   }
 
-  // Index's typing bubble, its tail towards the cube: "•••", the dots darkening in turn. It
+  // Index's typing bubble, its stem towards the cube: "•••", the dots darkening in turn. It
   // fades in as the cube appears and out as the cube folds away, its lines stepping
   // through the palette's greys.
   drawTyping(cy) {
