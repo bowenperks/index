@@ -63,6 +63,7 @@ const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
 const WAVE_STEP = 70, THINK_AFTER = 300, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
+const PREPARE_MS = 250;   // into a recording (and again later), text is measured
 
 // Each widget: its icon for the cutout and the large one the peek unfolds, and its body
 // if not text.
@@ -81,10 +82,8 @@ const WIDGETS = {
 const FADE_BLUES = [render.makeColor(170, 255, 255), render.makeColor(85, 170, 255), VIVID_CERULEAN];
 
 export default class Chat {
-  // `ready(question)` is asked for the result once Index has thought; `talk()` is a tap on
-  // the microphone.
-  constructor(ready, invalidate, talk) {
-    this.ready = ready;
+  // `talk()` is a tap on the microphone.
+  constructor(invalidate, talk) {
     // Most changes repaint the whole screen; invalidateArea repaints just a band of it.
     this.requestDraw = invalidate;
     this.invalidate = () => {
@@ -119,7 +118,7 @@ export default class Chat {
     this.thinking = new Thinking(() => this.invalidateSlot(), () => this.thinkingDone());
     // The result's icon unfolds and holds within the voice input's band, then flies across
     // the page.
-    this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidate() : this.invalidateSlot(),
+    this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidateFlight() : this.invalidateSlot(),
                                          () => this.landResult(), () => this.finishTurn());
     this.micUnfold = new IconTransition(() => this.invalidateSlot(), undefined, () => this.idle());
     for (const [day, widget, text] of HISTORY) {
@@ -229,10 +228,10 @@ export default class Chat {
   }
 
   // The playtest: records for `ms`, the waveform running in the user's bubble, then
-  // transcribes `question`.
-  listen(question, ms) {
+  // transcribes `question`. `answer` ({widget, text}) is Index's result, known up front.
+  listen(question, ms, answer) {
     if (this.busy || !this.visible) return false;
-    this.beginTurn(question);
+    this.beginTurn(question, answer);
     this.phase = "listening";
     this.waveform = new Waveform();
     const voice = this.size({type: "voice"});
@@ -243,21 +242,38 @@ export default class Chat {
       if (this.scrollAnimation?.scheduled) this.invalidate();
       else this.invalidateArea(voice.y, voice.y + voice.h);
     }, WAVE_STEP);
+    // Wrapping text is many native width measurements, so the message and the result are
+    // measured now, while only the waveform moves, not at the transitions that need them.
+    this.prepTimer = setTimeout(() => {
+      this.prepareQuery();
+      this.prepTimer = setTimeout(() => this.prepareResult(), PREPARE_MS);
+    }, PREPARE_MS);
     this.timer = setTimeout(() => this.transcribe(), ms);
     return true;
   }
 
   // A request already transcribed by the system's dictation.
-  ask(question) {
+  ask(question, answer) {
     if (this.busy || !question || !question.trim()) return false;
-    this.beginTurn(question);
+    this.beginTurn(question, answer);
     this.transcribe();
     return true;
   }
 
-  beginTurn(question) {
+  beginTurn(question, answer) {
     this.question = question;
+    this.answer = answer;
+    this.query = this.prepared = undefined;
     this.trim();
+  }
+
+  prepareQuery() {
+    this.query ??= this.size({type: "query"}, this.question);
+  }
+
+  prepareResult() {
+    this.prepTimer = undefined;
+    this.prepared ??= this.makeResult(this.answer.widget, this.answer.text);
   }
 
   // The recording becomes the user's whole message at once, pushed in from the bottom;
@@ -268,7 +284,8 @@ export default class Chat {
     if (this.items[this.items.length - 1].type === "voice") this.items.pop();
     this.waveform = undefined;
     this.phase = "transcribing";
-    this.push(this.size({type: "query"}, this.question));
+    this.prepareQuery();
+    this.push(this.query);
     this.timer = setTimeout(() => this.slide(), THINK_AFTER);
   }
 
@@ -295,33 +312,39 @@ export default class Chat {
     }
     this.thinking.setCloseRadius(WIDGET_DOT_RADIUS_Q8);
     this.thinkingAt = now();
+    // A result not measured during a recording (the voice build has none) is measured
+    // while the cube turns, rather than as it folds away.
+    if (!this.prepared && this.prepTimer === undefined) {
+      this.prepTimer = setTimeout(() => this.prepareResult(), PREPARE_MS);
+    }
     this.timer = setTimeout(() => this.thinking.requestStop(), THINK_MIN);
   }
 
   thinkingDone() {
     this.phase = "answering";
-    this.invalidate();
-    this.ready(this.question);
+    this.invalidateSlot();
+    this.result();
   }
 
   // The result has come in: the question fades and the result takes its place, rising in
   // from the bottom. A widget's icon first unfolds out of the cube's dot, holds, then flies
-  // into the card's header as the card arrives.
-  result(widget, text) {
-    if (this.phase !== "answering") return;
+  // into the card's cutout as the card arrives.
+  result() {
+    if (this.prepTimer !== undefined) clearTimeout(this.prepTimer);
+    this.prepareResult();
     const index = this.items.findIndex(item => item.type === "query");
-    const item = this.makeResult(widget, text);
+    const item = this.prepared;
     this.pending = [index, item];
     const slot = this.slotTop - this.offset;
     const flying = item.widget && slot >= 0 && slot + SLOT_HEIGHT <= HEIGHT &&
       this.transition.start(WIDGETS[item.widget][1], CUBE_X, slot + SLOT_CENTRE);
-    // The question fades out just before the result arrives; a flying icon lands the result
-    // itself, as its flight begins.
+    // The question fades out just before the result arrives (only its band repainting); a
+    // flying icon lands the result itself, as its flight begins.
     this.timer = setTimeout(() => {
       const query = this.items[index];
       new Animation(FADE_MS, easeInOut, progress => {
         query.shade = 255 - Math.trunc(progress * 255 / NORMAL_MAX);
-        this.invalidate();
+        this.invalidateArea(query.y, query.y + query.h);
       }, () => {
         if (!flying) this.landResult();
       }).schedule();
@@ -335,20 +358,24 @@ export default class Chat {
     item.shade = 0;
     item.rise = RISE;
     this.layout();
-    // The page rests at its end, but never with a card's top tucked under the time bar.
+    // The page rests at its end, but never with a card's top tucked under the time bar. It
+    // goes there at once: a scroll under the icon's flight would redraw the whole screen
+    // every frame of it.
     const offset = Math.min(this.maxOffset, item.y - this.headerHeight - 4);
-    this.setOffset(offset, true);
+    this.setOffset(offset, false);
+    this.invalidate();
     if (this.transition.active) {
       // The icon flies into the card's cutout.
       this.transition.retarget({x: item.x, y: item.y - offset + this.iconTop(item),
                                 w: WIDGET_ICON, h: WIDGET_ICON});
       this.landing = item;
+      this.flightTop = this.flightBottom = undefined;
     }
-    // The result rises into place as it darkens in.
+    // The result rises into place as it darkens in; only its band repaints.
     new Animation(REVEAL_MS, easeOut, progress => {
       item.rise = RISE - Math.trunc(RISE * progress / NORMAL_MAX);
       item.shade = progress < NORMAL_MAX / 3 ? 85 : progress < NORMAL_MAX * 2 / 3 ? 170 : 255;
-      this.invalidate();
+      this.invalidateArea(item.y, item.y + item.h + RISE);
     }).schedule();
     if (!this.transition.active) this.finishTurn();
   }
@@ -518,7 +545,7 @@ export default class Chat {
     const dirty = this.dirty;
     this.dirty = undefined;
     if (dirty === undefined) return;
-    if (dirty === true || this.transition.isFlying || this.notice) {
+    if (dirty === true || this.notice) {
       render.begin();
       this.draw(0, HEIGHT);
     } else {
@@ -550,6 +577,18 @@ export default class Chat {
     this.invalidateArea(this.slotTop - 8, this.slotTop + SLOT_HEIGHT + 8);
   }
 
+  // The flying icon's band: where it is now and where it was last frame (page
+  // coordinates, with a margin for its stroke), and the card rising to meet it.
+  invalidateFlight() {
+    const [top, bottom] = this.transition.span(1), offset = this.offset;
+    this.invalidateArea(Math.min(top, this.flightTop ?? top) + offset - 3,
+                        Math.max(bottom, this.flightBottom ?? bottom) + offset + 3);
+    this.flightTop = top;
+    this.flightBottom = bottom;
+    const item = this.landing;
+    if (item) this.invalidateArea(item.y, item.y + item.h + RISE);
+  }
+
   // Draws the screen rows from `top` to `bottom`: the whole screen, or a band of it.
   draw(top, bottom) {
     const offset = this.offset, items = this.items;
@@ -570,16 +609,15 @@ export default class Chat {
     }
     if (bottom > cleared) render.fillRectangle(WHITE, 0, cleared, WIDTH, bottom - cleared);
     this.drawSlot(this.slotTop - offset);
-    // The result's icon unfolding and holding, in the voice input's band.
-    if (this.transition.active && !this.transition.isFlying) this.transition.draw();
+    // The result's icon: unfolding and holding in the voice input's band, or flying over
+    // the page into its card.
+    if (this.transition.active) this.transition.draw();
     if (top > 0) return;
     // The time bar, and the position bar while the reader scrolls.
     render.fillRectangle(WHITE, 0, 0, WIDTH, this.headerHeight);
     drawText(this.clock, this.clockFont, ink(255), (WIDTH - textWidth(this.clock, this.clockFont)) >> 1, this.clockTop);
     render.drawLine(8, this.headerHeight - 1, WIDTH - 8, this.headerHeight - 1, DARK_GRAY, 1);
     if (this.barVisible) this.drawScrollBar();
-    // The widget's icon flying over the page into its card.
-    if (this.transition.isFlying) this.transition.draw();
     if (this.notice) {
       const h = this.textHeight(this.notice) + 18;
       this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true);

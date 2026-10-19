@@ -63,17 +63,11 @@ function draw() {
 
 onFrame(draw);
 
-const chat = new Chat(questionReady, invalidate, talk);
+const chat = new Chat(invalidate, talk);
 
-// Index's result for a question, once it has thought.
-function questionReady(question) {
-  const {widget, text} = resolve(question);
-  chat.result(widget, text);
-}
-
-// A transcribed question starts a turn.
+// A transcribed question starts a turn, with Index's result for it known up front.
 function ask(question) {
-  if (!chat.ask(question)) {
+  if (!chat.ask(question, resolve(question))) {
     chat.showNotice("I couldn't start that question. Please try again.");
   }
 }
@@ -81,7 +75,7 @@ function ask(question) {
 function playNext() {
   if (dictating || chat.busy) return;
   const [question] = DEMO[nextDemo];
-  if (!chat.listen(question, RECORDING_MS)) return;
+  if (!chat.listen(question, RECORDING_MS, resolve(question))) return;
   trace(`Index Alloy playtest ${nextDemo + 1}/${DEMO.length}: ${question}\n`);
   nextDemo = (nextDemo + 1) % DEMO.length;
 }

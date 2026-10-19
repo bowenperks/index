@@ -171,11 +171,11 @@ export default class Thinking {
       index = RIGHT_FIRST_FRAME + move * (TURN_LAST_FRAME + 1) + step;
     }
     // Sequence storage is native memory, so XS cannot see its allocation pressure. The
-    // previous frames are collected every third frame change: collecting on every one
-    // stalls the animation on the watch, and three ~1 KB frames are well within the heap.
+    // previous frames are collected every fifth frame change: collecting on every one
+    // stalls the animation on the watch, and five ~1 KB frames are well within the heap.
     if (index !== this.frameIndex) {
       this.frame = undefined;
-      if (++this.loads % 3 === 0) Debug.gc();
+      if (++this.loads % 5 === 0) Debug.gc();
       this.frame = new Poco.PebbleDrawCommandSequence(THINKING_FIRST + index);
       this.frame.time = 0;
       this.frameIndex = index;
