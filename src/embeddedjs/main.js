@@ -54,18 +54,17 @@ function questionReady(question) {
   chat.result(widget, text);
 }
 
-// A transcribed question starts a turn. Its widget is known from the request, so the
-// thinking cube can close into that widget's dot.
+// A transcribed question starts a turn.
 function ask(question) {
-  if (!chat.ask(question, resolve(question).widget)) {
+  if (!chat.ask(question)) {
     chat.showNotice("I couldn't start that question. Please try again.");
   }
 }
 
 function playNext() {
   if (dictating || chat.busy) return;
-  const [question, widget] = DEMO[nextDemo];
-  if (!chat.listen(question, widget, RECORDING_MS)) return;
+  const [question] = DEMO[nextDemo];
+  if (!chat.listen(question, RECORDING_MS)) return;
   trace(`Index Alloy playtest ${nextDemo + 1}/${DEMO.length}: ${question}\n`);
   nextDemo = (nextDemo + 1) % DEMO.length;
 }

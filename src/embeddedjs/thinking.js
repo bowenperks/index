@@ -99,6 +99,11 @@ export default class Thinking {
     this.stopRequested = true;
   }
 
+  // Whether the cube is folding away; `elapsed` is then how far into that it is.
+  get closing() {
+    return this.active && this.stage === CLOSING;
+  }
+
   startStage(stage) {
     this.stage = stage;
     this.elapsed = 0;

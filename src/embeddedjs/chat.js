@@ -4,14 +4,15 @@
 // microphone beneath them.
 //
 // Asking pushes things in from the bottom: the recording's waveform in the user's bubble,
-// then its words as they are transcribed; the microphone's ring then turns into the
-// thinking cube, Index's "typing" animation. When the result comes in it takes the words'
-// place, so the history keeps results rather than questions.
+// then its words as they are transcribed. The microphone's ring then slides to the bottom
+// left and turns into the thinking cube, with Index's typing bubble ("•••") beside it.
+// When the result comes in it takes the words' place, so the history keeps results rather
+// than questions.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
 import * as assets from "assets";
-import {Animation, NORMAL_MAX, easeInOut, easeOut} from "motion";
+import {Animation, NORMAL_MAX, easeInOut, easeOut, now} from "motion";
 import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
         ink, font, drawText, textWidth, measure, resetPen} from "theme";
 import Thinking, {RING_RADIUS_Q8, drawRing} from "thinking";
@@ -35,8 +36,12 @@ const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TO
 const GCORNERS_TOP = 3, GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
 // The voice input's slot at the end of the page: the ring's centre sits 36px down, so the
-// thinking cube's art (33px above its centre, 35 below) fits inside it.
-const SLOT_HEIGHT = 76, SLOT_CENTRE = 36;
+// thinking cube's art (31px above its centre, up to 42 below as it turns) fits inside it.
+const SLOT_HEIGHT = 80, SLOT_CENTRE = 36;
+// While Index thinks, the cube sits at the bottom left (its art spans 35px either side of
+// its centre at most), and the typing bubble beside it, centred on the cube's art.
+const CUBE_X = 44, TYPING_X = 89, TYPING_TOP = -11, TYPING_WIDTH = 56, TYPING_HEIGHT = 30;
+const SLIDE_MS = 220, TYPING_FADE_MS = 200, TYPING_STEP_MS = 220;
 // The recording's bubble: the waveform in a pill.
 const VOICE_PADDING = 12, VOICE_HEIGHT = 36;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
@@ -204,11 +209,10 @@ export default class Chat {
   }
 
   // The playtest: records for `ms`, the waveform running in the user's bubble, then
-  // transcribes `question`. `widget` is the card the result will be, known from the request
-  // as a real result would be while thinking: the cube then closes into its icon's dot.
-  listen(question, widget, ms) {
+  // transcribes `question`.
+  listen(question, ms) {
     if (this.busy || !this.visible) return false;
-    this.beginTurn(question, widget);
+    this.beginTurn(question);
     this.phase = "listening";
     this.waveform = new Waveform();
     this.push(this.size({type: "voice"}));
@@ -221,16 +225,15 @@ export default class Chat {
   }
 
   // A request already transcribed (by the system's dictation): its words come in whole.
-  ask(question, widget) {
+  ask(question) {
     if (this.busy || !question || !question.trim()) return false;
-    this.beginTurn(question, widget);
+    this.beginTurn(question);
     this.transcribe(false);
     return true;
   }
 
-  beginTurn(question, widget) {
+  beginTurn(question) {
     this.question = question;
-    this.closedToDot = !!WIDGETS[widget];
     this.stopPing();
     this.trim();
   }
@@ -245,28 +248,40 @@ export default class Chat {
     const query = this.size({type: "query"}, this.question);
     this.push(query);
     if (!reveal) {
-      this.timer = setTimeout(() => this.startThinking(), THINK_AFTER);
+      this.timer = setTimeout(() => this.slide(), THINK_AFTER);
       return;
     }
     query.shown = 0;
     this.timer = setInterval(() => {
       if (++query.shown >= query.words) {
         clearInterval(this.timer);
-        this.timer = setTimeout(() => this.startThinking(), THINK_AFTER);
+        this.timer = setTimeout(() => this.slide(), THINK_AFTER);
       }
       this.invalidate();
     }, WORD_STEP);
   }
 
-  // The microphone's ring becomes the thinking cube; it folds away once the answer is ready
-  // (after at least one turn), into the ring again or into a widget icon's dot.
+  // Index starts typing: the microphone's ring slides to the bottom left, where it becomes
+  // the thinking cube, like a messaging app's avatar beside its typing bubble.
+  slide() {
+    this.phase = "sliding";
+    const from = WIDTH >> 1;
+    new Animation(SLIDE_MS, easeInOut, progress => {
+      this.ringX = from + Math.trunc((CUBE_X - from) * progress / NORMAL_MAX);
+      this.invalidate();
+    }, () => this.startThinking()).schedule();
+  }
+
+  // The cube turns until the answer is ready (at least one turn), then folds away into a
+  // dot, which a widget's icon unfolds out of.
   startThinking() {
     this.phase = "thinking";
     if (!this.thinking.start(RING_RADIUS_Q8)) {
       this.thinkingDone();
       return;
     }
-    if (this.closedToDot) this.thinking.setCloseRadius(WIDGET_DOT_RADIUS_Q8);
+    this.thinking.setCloseRadius(WIDGET_DOT_RADIUS_Q8);
+    this.thinkingAt = now();
     this.timer = setTimeout(() => this.thinking.requestStop(), THINK_MIN);
   }
 
@@ -286,7 +301,7 @@ export default class Chat {
     this.pending = [index, item];
     const slot = this.slotTop - this.offset;
     const flying = item.widget && slot >= 0 && slot + SLOT_HEIGHT <= HEIGHT &&
-      this.transition.start(WIDGETS[item.widget][2], WIDTH >> 1, slot + SLOT_CENTRE);
+      this.transition.start(WIDGETS[item.widget][2], CUBE_X, slot + SLOT_CENTRE);
     // The question fades out just before the result arrives; a flying icon lands the result
     // itself, as its flight begins.
     this.timer = setTimeout(() => {
@@ -324,13 +339,9 @@ export default class Chat {
     if (!this.transition.active) this.finishTurn();
   }
 
-  // The turn is over. A cube that closed into a dot grows back into the microphone's ring.
+  // The turn is over: the microphone's ring grows back, out of a dot, at the centre.
   finishTurn() {
     this.landing = undefined;
-    if (!this.closedToDot) {
-      this.idle();
-      return;
-    }
     this.phase = "regrowing";
     this.regrowQ8 = WIDGET_DOT_RADIUS_Q8;
     new Animation(REGROW_MS, easeOut, progress => {
@@ -610,17 +621,37 @@ export default class Chat {
   }
 
   // The voice input: the microphone in its ring (pinging while it waits, swelling with the
-  // voice while it listens), or the thinking cube that grows out of the ring.
+  // voice while it listens), or, while Index thinks, the cube at the bottom left with its
+  // typing bubble.
   drawSlot(top) {
     if (top >= HEIGHT) return;
     const cx = WIDTH >> 1, cy = top + SLOT_CENTRE;
     if (this.thinking.active) {
-      this.thinking.draw(cx, cy);
+      this.thinking.draw(CUBE_X, cy);
+      this.drawTyping(cy);
+    } else if (this.phase === "sliding") {
+      drawRing(this.ringX ?? cx, cy, RING_RADIUS_Q8, RING_RADIUS_Q8);
     } else if (this.phase === "regrowing") {
       drawRing(cx, cy, this.regrowQ8, this.regrowQ8);
     } else if (this.phase !== "answering") {
       const level = this.waveform ? this.waveform.level >> 6 : 0;
       drawMic(cx, cy, RING + level, this.pingStep < PING_STEPS ? (this.pingStep << 10) / PING_STEPS | 0 : undefined);
+    }
+  }
+
+  // Index's typing bubble, its tail towards the cube: "•••", the dots darkening in turn. It
+  // fades in as the cube appears and out as the cube folds away, in the palette's greys.
+  drawTyping(cy) {
+    const fade = this.thinking.closing ? 255 - this.thinking.elapsed * 255 / TYPING_FADE_MS
+                                       : (now() - this.thinkingAt) * 255 / TYPING_FADE_MS;
+    const shade = Math.min(255, Math.max(0, Math.trunc(fade / 85) * 85));
+    if (!shade) return;
+    const y = cy + TYPING_TOP;
+    this.drawBubble(TYPING_X, y, TYPING_WIDTH, TYPING_HEIGHT, [], shade);
+    const active = Math.trunc(now() / TYPING_STEP_MS) % 4;
+    for (let dot = 0; dot < 3; dot++) {
+      render.drawCircle(ink(dot === active ? shade : Math.min(shade, 85)), TYPING_X + 16 + dot * 12,
+                        y + (TYPING_HEIGHT >> 1), 3);
     }
   }
 
