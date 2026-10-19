@@ -2,7 +2,10 @@
 import Poco from "commodetto/Poco";
 import {PEN} from "assets";
 
-export const render = new Poco(screen);
+// Poco on Pebble draws straight into the frame buffer: it never uses the display list or
+// the row buffer Poco allocates by default (1 KB and two rows), so they are kept to the
+// least it accepts, which leaves the app's heap ~1.2 KB more.
+export const render = new Poco(screen, {displayListLength: 0, pixels: screen.width});
 export const WIDTH = render.width;
 export const HEIGHT = render.height;
 
@@ -66,17 +69,44 @@ export function font(family, size) {
 
 // Text is placed as the native app placed graphics_draw_text boxes: by the box's top.
 // Poco positions a line by its cap height instead, offset by the font's cap bearing.
-// Worked out once per font: reading a font's metrics is a call into native code, and text
-// is drawn many times a frame.
-const capOffsets = new Map();
-function capOffset(f) {
-  let offset = capOffsets.get(f);
-  if (offset === undefined) capOffsets.set(f, offset = f.height - f.ascent - 1);
-  return offset;
+// Worked out once per font, with the font's line height: reading a font's metrics is a
+// call into native code, and text is drawn many times a frame.
+const metrics = new Map();
+function metric(f) {
+  let found = metrics.get(f);
+  if (!found) metrics.set(f, found = [f.height - f.ascent - 1, f.height]);
+  return found;
 }
 
+// The rows being painted (screen coordinates). A frame often paints only a band of the
+// screen: text outside it is skipped, and callers check larger art with inBand, rather
+// than handing it to the firmware to lay out and clip away. The firmware lays out every
+// line whose 127px text box reaches the clip at all, so without this a band a few rows
+// high costs the text of whole cards.
+// A narrow band (a scroll's icon column) also ends at `right`: text that starts beyond it
+// is skipped too, and callers check wide art with beforeRight.
+let bandTop = -32768, bandBottom = 32767, bandRight = 32767;
+export function setBand(top, bottom, right) {
+  bandTop = top;
+  bandBottom = bottom;
+  bandRight = right;
+}
+export const inBand = (top, bottom) => bottom > bandTop && top < bandBottom;
+export const beforeRight = left => left < bandRight;
+
+// @strip profile
+// Lines of text drawn this frame, for the instrumented build's profile.
+export const stats = {texts: 0, shift: 0, icons: 0, strip: 0, rest: 0, stretch: 0, stretches: 0};
+// @endstrip
+
 export function drawText(text, f, color, x, top) {
-  render.drawText(text, f, color, x, top + capOffset(f) - 1);
+  const found = metric(f);
+  // A line's ink lies within its box, the font's height from its top; two rows of slack.
+  if (top + found[1] + 2 <= bandTop || top - 2 >= bandBottom || x >= bandRight) return;
+  // @strip profile
+  stats.texts++;
+  // @endstrip
+  render.drawText(text, f, color, x, top + found[0] - 1);
 }
 
 // A text's width is measured natively every time. A cache of recent widths per font

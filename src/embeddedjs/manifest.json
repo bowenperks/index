@@ -34,9 +34,31 @@
 				"arguments": [],
 				"returns": "void"
 			},
-			"shiftRows": {
-				"arguments": ["int32_t", "int32_t", "int32_t"],
+			"renderCount": {
+				"arguments": [],
 				"returns": "int32_t"
+			},
+			"shiftRows": {
+				"arguments": [
+					"int32_t",
+					"int32_t",
+					"int32_t"
+				],
+				"returns": "int32_t"
+			},
+			"stretchIcon": {
+				"arguments": [
+					"int32_t",
+					"int32_t",
+					"int32_t",
+					"int32_t",
+					"int32_t"
+				],
+				"returns": "int32_t"
+			},
+			"stretchRelease": {
+				"arguments": [],
+				"returns": "void"
 			}
 		}
 	}

@@ -15,13 +15,16 @@ import * as assets from "assets";
 import {Animation, NORMAL_MAX, linear, easeInOut, easeOut, now, moook, MOOOK_MS, segmented,
         fraction} from "motion";
 import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
-        ink, font, drawText, textWidth, measure, resetPen, art} from "theme";
+        ink, font, drawText, textWidth, measure, resetPen, art, setBand, inBand, beforeRight} from "theme";
 import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
-import {drawMic, Waveform} from "mic";
+import {drawMic, Waveform, MIC_SIZE} from "mic";
 import {history} from "prompts";
+// @strip profile
+import {stats} from "theme";
+// @endstrip
 
 const CAPACITY = 7;   // history entries (results and day labels) kept, to bound memory
 // Index's replies sit at the left margin with a tail; the user's bubbles are solid pills
@@ -91,8 +94,10 @@ const FADE_BLUES = [render.makeColor(170, 255, 255), render.makeColor(85, 170, 2
 
 // Once Poco has drawn, Index keeps the drawing context natively too (scroll.c).
 let hooked = false;
-// A card's icon's rows this frame (iconSpan), one reused pair: no garbage per card.
+// A card's icon's rows this frame (iconSpan), one reused pair, and the frame handed to a
+// card's body: no garbage per card per frame.
 const span = [0, 0];
+const body = {x: 0, y: 0, w: 0};
 
 export default class Chat {
   // `talk()` is a tap on the microphone.
@@ -198,6 +203,14 @@ export default class Chat {
     item.x = x;
     item.w = w;
     item.h = h;
+    // Centring needs a width, measured once here rather than every frame: the last line
+    // of Index's messages is centred across its text, a day label across the page.
+    if (item.type === "day") {
+      item.textX = (WIDTH - textWidth(item.text, font("Gothic-Bold", 18))) >> 1;
+    } else if (item.lines && item.type !== "query") {
+      const width = item.widget ? w - 2 * CARD_TEXT_INSET : w - 16;
+      item.lastX = (width - textWidth(item.lines[item.lines.length - 1], this.font)) >> 1;
+    }
     return item;
   }
 
@@ -433,6 +446,9 @@ export default class Chat {
     const running = this.scrollAnimation?.scheduled;
     this.scrollAnimation?.unschedule();
     this.scrollAnimation = undefined;
+    // An Up / Down step cut short (by a turn's scroll, or a touch) never reaches its end:
+    // its icons stand straight again here.
+    if (this.stretch) this.endStep();
     if (!animated || !this.visible) {
       this.offsetChanged(target);
       return;
@@ -485,16 +501,28 @@ export default class Chat {
     this.showBar();
     this.scrollAnimation?.unschedule();
     this.scrollTarget = target;
-    const stretch = this.stretch = {from, target, progress: 0, frames: 0};
+    // Up or Down again mid-step: the screen's icons belong to the step before, so the
+    // next frame repaints the page rather than work from where they were.
+    if (this.stretch) this.invalidate();
+    // `drawn` is the progress of the frame on the screen (scrollScreen).
+    const stretch = this.stretch = {from, target, progress: 0, drawn: 0};
     this.scrollAnimation = new Animation(MOOOK_MS, linear, progress => {
       stretch.progress = progress;
-      // The icons' stretched copies are native memory: collected every third frame.
-      if (++stretch.frames % 3 === 0) Debug.gc();
-      this.offsetChanged(moook(progress, from, target));
+      const offset = moook(progress, from, target);
+      // The icons stretch on their own while the page holds (the wind-up's first frame).
+      if (offset !== this.offset) this.offsetChanged(offset);
+      else this.invalidateScroll();
     }, () => {
-      if (this.stretch === stretch) this.stretch = undefined;
-      this.invalidate();
+      if (this.stretch === stretch) this.endStep();
     }).schedule();
+  }
+
+  // The step is over, or cut short: the icons stand straight again, and the stretched
+  // icons' native memory (scroll.c) is freed.
+  endStep() {
+    this.stretch = undefined;
+    Natives.stretchRelease();
+    this.invalidate();
   }
 
   // A Touch sensor sample: [{x, y}] while the finger is down, [] when it lifts. A drag
@@ -532,6 +560,8 @@ export default class Chat {
   showNotice(message) {
     if (this.noticeTimer !== undefined) clearTimeout(this.noticeTimer);
     this.notice = measure(message, this.font, WIDTH - BUBBLE_INSET - 16).lines;
+    this.noticeLastX = (WIDTH - BUBBLE_INSET - 16 -
+                        textWidth(this.notice[this.notice.length - 1], this.font)) >> 1;
     this.noticeTimer = setTimeout(() => {
       this.noticeTimer = undefined;
       this.notice = "";
@@ -551,6 +581,7 @@ export default class Chat {
     const descender = this.headerHeight === 28 ? 4 : 3;
     const inkHeight = this.clockFont.height - bearing + descender;
     this.clockTop = Math.trunc((this.headerHeight - 1 - inkHeight) / 2) - bearing;
+    this.clockX = (WIDTH - textWidth(this.clock, this.clockFont)) >> 1;
     this.invalidate();
   }
 
@@ -596,6 +627,7 @@ export default class Chat {
       this.draw(0, HEIGHT);
     }
     this.drawnOffset = this.offset;
+    if (this.stretch) this.stretch.drawn = this.stretch.progress;
     render.end();
     if (!hooked) {
       // Poco has set the root layer's update proc on this first frame: take it over.
@@ -605,36 +637,63 @@ export default class Chat {
   }
 
   // A scrolled frame. The rows on the screen move by the scroll, natively (scroll.c), and
-  // only what that exposed is painted: a strip at the bottom or the top, the position
-  // bar's column and, on Up and Down, each card's stretching icon, where it was (moved
-  // with the rows) and where it is now. Everything else on the page moved with the rows.
-  // False when the rows cannot be moved: before the hook is in, or by a whole page.
+  // only what that exposed is painted: a strip at the bottom or the top and the position
+  // bar's column. Everything else on the page moved with the rows, except, in an Up /
+  // Down step, the icons, which stretch instead. Each is painted again over the rows it
+  // covered last frame (moved with the rows) and covers now, in its 40px column, bands
+  // that meet merged so every icon is drawn once; the strip leaves them out. False when
+  // the rows cannot be moved: before the hook is in, or by a whole page.
   scrollScreen(dy) {
-    const header = this.headerHeight, step = dy < 0 ? -dy : dy;
-    if (!step || step >= HEIGHT - header || !Natives.shiftRows(header, HEIGHT, dy)) return false;
+    const header = this.headerHeight, step = dy < 0 ? -dy : dy, stretch = this.stretch;
+    if (!hooked || step >= HEIGHT - header || (!step && !stretch)) return false;
+    // @strip profile
+    let mark = now();
+    // @endstrip
+    if (step && !Natives.shiftRows(header, HEIGHT, dy)) return false;
+    // @strip profile
+    stats.shift += now() - mark;
+    mark = now();
+    // @endstrip
     render.begin();
     // Poco's clip stack on Pebble restores, when a clip is popped, the rectangle it saved
     // when that clip was pushed, and begin() does not set that rectangle: so the whole
     // screen is pushed first, and each band's pop restores the whole screen.
     render.clip(0, 0, WIDTH, HEIGHT);
-    if (this.stretch) {
-      const items = this.items, offset = this.offset;
+    this.iconsHeld = stretch !== undefined;
+    if (dy > 0) this.drawBand(0, HEIGHT - step, WIDTH, HEIGHT);
+    else if (dy < 0) this.drawBand(0, header, WIDTH, header + step);
+    this.iconsHeld = false;
+    // @strip profile
+    stats.strip += now() - mark;
+    mark = now();
+    // @endstrip
+    if (stretch) {
+      const items = this.items, drawn = this.drawnOffset, offset = this.offset;
+      let top = 0, bottom = 0;
       for (let index = 0; index < items.length; index++) {
         const item = items[index];
         if (!item.widget || item.shade !== 255 || item === this.landing) continue;
-        const y = item.y - offset;
-        if (y + item.h <= header || y >= HEIGHT) continue;
-        this.iconSpan(item, y);
-        let top = span[0], bottom = span[1];
-        if (item.iconAt !== undefined) {
-          top = Math.min(top, item.iconAt - dy);
-          bottom = Math.max(bottom, item.iconEnd - dy);
+        // Where the icon was last frame, moved with the rows, and where it is now.
+        this.iconSpan(item, item.y - drawn, stretch.drawn);
+        const from = span[0] - dy, to = span[1] - dy;
+        this.iconSpan(item, item.y - offset, stretch.progress);
+        const first = Math.max(header, Math.min(from, span[0]) - 1);
+        const last = Math.min(HEIGHT, Math.max(to, span[1]) + 1);
+        if (last <= first) continue;
+        if (bottom > top && first <= bottom) {
+          bottom = Math.max(bottom, last);
+        } else {
+          this.drawBand(CARD_MARGIN, top, CARD_MARGIN + CUT_WIDTH, bottom);
+          top = first;
+          bottom = last;
         }
-        this.drawBand(item.x, Math.max(header, top - 1), item.x + CUT_WIDTH, Math.min(HEIGHT, bottom + 1));
       }
+      this.drawBand(CARD_MARGIN, top, CARD_MARGIN + CUT_WIDTH, bottom);
     }
-    if (dy > 0) this.drawBand(0, HEIGHT - step, WIDTH, HEIGHT);
-    else this.drawBand(0, header, WIDTH, header + step);
+    // @strip profile
+    stats.icons += now() - mark;
+    mark = now();
+    // @endstrip
     // The position bar's column, cleared: nothing else on the page reaches it.
     render.fillRectangle(WHITE, 0, header, BAR_COLUMN, HEIGHT - header);
     if (this.barVisible) this.drawScrollBar();
@@ -642,7 +701,19 @@ export default class Chat {
     render.fillRectangle(WHITE, 0, header - 1, WIDTH, 1);
     render.drawLine(8, header - 1, WIDTH - 8, header - 1, DARK_GRAY, 1);
     render.clip();
+    // @strip profile
+    stats.rest += now() - mark;
+    // @endstrip
     return true;
+  }
+
+  // A card's icon `height` rows tall from `top`: stretched natively (scroll.c), or as
+  // built when it stands straight (or the stretched copy could not be made).
+  drawIcon(item, top, height) {
+    const icon = WIDGETS[item.widget][0];
+    if (height === WIDGET_ICON || !Natives.stretchIcon(icon, item.x, top, height, WIDGET_ICON)) {
+      render.drawDCI(art(icon), item.x, top);
+    }
   }
 
   // Paints the page within a clip (screen coordinates). The clip starts one row above the
@@ -653,7 +724,7 @@ export default class Chat {
   drawBand(left, top, right, bottom) {
     if (bottom <= top) return;
     render.clip(left, top - 1, right - left, bottom - top + 1);
-    this.draw(top, bottom);
+    this.draw(top, bottom, right);
     render.clip();
   }
 
@@ -699,8 +770,10 @@ export default class Chat {
   }
 
   // Draws the screen rows from `top` to `bottom`: the whole screen, or a band of it.
-  draw(top, bottom) {
+  draw(top, bottom, right = WIDTH) {
     const offset = this.offset, items = this.items;
+    // A band's clip starts a row above it (drawBand).
+    setBand(top - 1, bottom, right);
     // The page is cleared strip by strip, each just before what goes on it, never all at
     // once: the firmware can copy the frame buffer to the display mid-draw (see main.js),
     // and this way it catches at most one item half drawn, not a white screen. An indexed
@@ -717,20 +790,27 @@ export default class Chat {
       this.drawItem(item, y);
     }
     if (bottom > cleared) render.fillRectangle(WHITE, 0, cleared, WIDTH, bottom - cleared);
-    this.drawSlot(this.slotTop - offset);
+    const slot = this.slotTop - offset;
+    // The microphone sits mid-page; the cube, while Index thinks, at the left.
+    if (inBand(slot - 8, slot + SLOT_HEIGHT + 8) &&
+        beforeRight(this.thinking.active ? 0 : (WIDTH - MIC_SIZE) >> 1)) {
+      this.drawSlot(slot);
+    }
     // The result's icon: unfolding and holding in the voice input's band, or flying over
     // the page into its card.
     if (this.transition.active) this.transition.draw();
+    setBand(-32768, 32767, 32767);
     if (top > 0) return;
     // The time bar, and the position bar while the reader scrolls.
     render.fillRectangle(WHITE, 0, 0, WIDTH, this.headerHeight);
-    drawText(this.clock, this.clockFont, ink(255), (WIDTH - textWidth(this.clock, this.clockFont)) >> 1, this.clockTop);
+    drawText(this.clock, this.clockFont, ink(255), this.clockX, this.clockTop);
     render.drawLine(8, this.headerHeight - 1, WIDTH - 8, this.headerHeight - 1, DARK_GRAY, 1);
     if (this.barVisible) this.drawScrollBar();
     // @strip dictation
     if (this.notice) {
       const h = this.textHeight(this.notice) + 18;
-      this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true);
+      this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true,
+                      this.noticeLastX);
     }
     // @endstrip
   }
@@ -738,8 +818,7 @@ export default class Chat {
   drawItem(item, y) {
     const {x, w, h, shade} = item;
     if (item.type === "day") {
-      const face = font("Gothic-Bold", 18);
-      drawText(item.text, face, DARK_GRAY, (WIDTH - textWidth(item.text, face)) >> 1,
+      drawText(item.text, font("Gothic-Bold", 18), DARK_GRAY, item.textX,
                y + ((DAY_HEIGHT - DAY_CAP) >> 1) - DAY_CAP_TOP);
     } else if (item.type === "voice") {
       render.drawRoundRect(x, y, w, h, VIVID_CERULEAN, PILL_RADIUS, GCORNERS_ALL);
@@ -754,12 +833,12 @@ export default class Chat {
     } else if (item.widget) {
       this.drawCard(item, y);
     } else {
-      this.drawBubble(x, y, w, h, item.lines, shade);
+      this.drawBubble(x, y, w, h, item.lines, shade, false, item.lastX);
     }
   }
 
   // Index's reply bubble: the thin grey outline of the home greeting, with its tail.
-  drawBubble(x, y, w, h, lines, shade, fill) {
+  drawBubble(x, y, w, h, lines, shade, fill, lastX) {
     if (!shade) return;
     const border = ink(Math.min(shade, 170));
     // Filled only over content (the notice): the page's strips are already white.
@@ -773,17 +852,16 @@ export default class Chat {
     }
     render.drawDCI(this.tail, x - 5, y + h - 1 - 9);
     render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
-    this.drawLines(lines, ink(shade), x + 8, y + 9 - this.textTop, w - 16);
+    this.drawLines(lines, ink(shade), x + 8, y + 9 - this.textTop, lastX);
   }
 
-  // Lines of conversation text from `x`. Given the text's `width`, as for Index's own
-  // messages, the last line is centred across it.
-  drawLines(lines, color, x, top, width) {
+  // Lines of conversation text from `x`. Index's own messages pass `lastX`, where their
+  // last line starts to be centred (measured when the entry was sized).
+  drawLines(lines, color, x, top, lastX) {
     const last = lines.length - 1;
     for (let index = 0; index <= last; index++) {
-      const line = lines[index];
-      const left = width && index === last ? x + ((width - textWidth(line, this.font)) >> 1) : x;
-      drawText(line, this.font, color, left, top + index * this.lineHeight);
+      const left = lastX !== undefined && index === last ? x + lastX : x;
+      drawText(lines[index], this.font, color, left, top + index * this.lineHeight);
     }
   }
 
@@ -793,21 +871,21 @@ export default class Chat {
     return item.card - 1 - ICON_ABOVE;
   }
 
-  // The icon's rows this frame, into `span`, for a card drawn at screen row `y`: at rest,
-  // or along an Up or Down step, where the icon's edge facing the travel leads and the
-  // other follows, so the icon is stretched over the jump and squashed as the overshoot
-  // turns back.
-  iconSpan(item, y) {
+  // The icon's rows into `span`, for a card drawn at screen row `y`, at a step's
+  // `progress` (this frame's by default): at rest, or along an Up or Down step, where the
+  // icon's edge facing the travel leads and the other follows, so the icon is stretched
+  // over the jump and squashed as the overshoot turns back.
+  iconSpan(item, y, progress = this.stretch?.progress ?? NORMAL_MAX) {
     const stretch = this.stretch;
-    if (!stretch || stretch.progress >= NORMAL_MAX) {
+    if (progress >= NORMAL_MAX) {
       span[0] = y + this.iconTop(item);
       span[1] = span[0] + WIDGET_ICON;
       return;
     }
     const rest = item.y + this.iconTop(item);
     const startY = rest - stretch.from, endY = rest - stretch.target;
-    const first = segmented(stretch.progress, 0, 2, STRETCH_POINT);
-    const second = segmented(stretch.progress, 1, 2, STRETCH_POINT);
+    const first = segmented(progress, 0, 2, STRETCH_POINT);
+    const second = segmented(progress, 1, 2, STRETCH_POINT);
     const up = endY < startY;
     span[0] = moook(up ? first : second, startY, endY);
     span[1] = moook(up ? second : first, startY + WIDGET_ICON, endY + WIDGET_ICON);
@@ -820,36 +898,30 @@ export default class Chat {
     const {x, w, shade} = item;
     if (!shade) return;
     // Indexed, not destructured: destructuring makes an iterator, every card, every frame.
-    const widget = WIDGETS[item.widget], icon = widget[0], body = widget[2], source = widget[3];
+    const widget = WIDGETS[item.widget], source = widget[3];
     const h = item.card, edge = y + h - 1, quiet = ink(Math.min(shade, 170));
     resetPen();
     render.frameRoundRect(x, y, w, h, quiet, CARD_RADIUS);
     render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
     // The cutout: the frame's corner cleared away, nothing drawn around it.
     render.fillRectangle(WHITE, x, edge - CUT_HEIGHT + 1, CUT_WIDTH, CUT_HEIGHT);
-    // The icon, once the card is fully revealed and the flying icon has landed.
-    if (shade === 255 && item !== this.landing) {
+    // The icon, once the card is fully revealed and the flying icon has landed (and not
+    // in a step's exposed strip, as its column is painted next: scrollScreen).
+    if (shade === 255 && item !== this.landing && !this.iconsHeld) {
       this.iconSpan(item, y);
-      const top = span[0], height = span[1] - top;
-      // Where it was painted, for the next scrolled frame to paint over.
-      item.iconAt = top;
-      item.iconEnd = span[1];
-      if (height === WIDGET_ICON) {
-        render.drawDCI(art(icon), x, top);
-      } else {
-        const copy = art(icon).clone();
-        copy.scale(1, Math.max(1, height) / WIDGET_ICON);
-        render.drawDCI(copy, x, top);
-      }
+      if (inBand(span[0], span[1])) this.drawIcon(item, span[0], span[1] - span[0]);
     }
-    if (body === "weather") {
-      drawWeather(WEATHER_DEMO, {x, y: y + 1, w}, shade);
-    } else if (body) {
-      CARDS[body].draw({x, y: y + 1, w}, shade);
+    if (!inBand(y, y + h)) return;
+    body.x = x;
+    body.y = y + 1;
+    body.w = w;
+    if (widget[2] === "weather") {
+      drawWeather(WEATHER_DEMO, body, shade);
+    } else if (widget[2]) {
+      CARDS[widget[2]].draw(body, shade);
     } else {
       const top = y + CARD_TEXT_PADDING;
-      this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop,
-                     w - 2 * CARD_TEXT_INSET);
+      this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop, item.lastX);
       if (source) {
         drawText(source, font("Gothic-Regular", 14), quiet, x + CARD_TEXT_INSET,
                  top + this.textHeight(item.lines) + SOURCE_GAP - SOURCE_CAP_TOP);

@@ -14,6 +14,8 @@ import {onFrame, isAnimating, now} from "motion";
 import {setTimeout, startTimers} from "timers";
 // @strip profile
 import {cubeStats} from "thinking";
+import {stats, render} from "theme";
+import {BEEPER_MEDIUM, STREET_MAP, PEN} from "assets";
 // @endstrip
 
 // The build helper enables this only in the Select-driven playtest package, which asks
@@ -58,27 +60,43 @@ function armDraw() {
 // drawn, how long they took, and the longest wait between frames, and log it all once the
 // turn is over (logging during it would itself delay frames), to find stalls on the watch.
 const PROFILE = false;
+// Instrumented builds with INDEX_SCROLLBENCH=1 also press Up and Down by themselves after
+// launch, so a scroll can be measured on the watch with nobody at its buttons.
+const SCROLL_BENCH = false;
 // @strip profile
 const profile = PROFILE ? {} : undefined;
-let profiling = false;
+let profiling = false, renders = 0, scrollStart = 0;
 
-function record(key, gap, draw) {
-  if (!chat.busy) {
+function record(key, gap, draw, texts) {
+  if (!chat.busy && chat.stretch === undefined) {
     if (!profiling) return;
     profiling = false;
     for (const name in profile) {
       const s = profile[name];
       trace(`${name}: ${s.frames} frames, draw avg ${Math.trunc(s.sum / s.frames)} max ${s.max}, ` +
-            `gap max ${s.gap}, late ${s.late}\n`);
+            `gap max ${s.gap}, late ${s.late}, texts avg ${Math.trunc(s.texts / s.frames)} max ${s.textMax}\n`);
       delete profile[name];
     }
-    const [collections, collectionMax, loadMax] = cubeStats();
-    trace(`cube: ${collections} collections, longest ${collectionMax}ms; longest frame load ${loadMax}ms\n`);
+    const passes = Natives.renderCount();
+    trace(`render passes ${passes - renders} in ${now() - scrollStart}ms; ms in shift ${stats.shift}, ` +
+          `strip ${stats.strip}, icon column ${stats.icons}, rest ${stats.rest}\n`);
+    stats.shift = stats.icons = stats.strip = stats.rest = stats.stretch = stats.stretches = 0;
+    renders = passes;
+    if (!SCROLL_BENCH) {
+      const [collections, collectionMax, loadMax] = cubeStats();
+      trace(`cube: ${collections} collections, longest ${collectionMax}ms; longest frame load ${loadMax}ms\n`);
+    }
     return;
   }
-  const s = profile[key] ??= {frames: 0, sum: 0, max: 0, gap: 0, late: 0};
+  if (!profiling) {
+    renders = Natives.renderCount();
+    scrollStart = now();
+  }
+  const s = profile[key] ??= {frames: 0, sum: 0, max: 0, gap: 0, late: 0, texts: 0, textMax: 0};
   s.frames++;
   s.sum += draw;
+  s.texts += texts;
+  if (texts > s.textMax) s.textMax = texts;
   if (draw > s.max) s.max = draw;
   // The first frame of a turn follows the idle wait, which is no gap.
   if (profiling) {
@@ -104,12 +122,13 @@ function draw() {
   drawPending = false;
   const start = now();
   // @strip profile
-  const kind = chat.dirty === true ? "full" : "band";
+  const kind = chat.dirty === true ? "full" : chat.dirty === "scroll" ? "shift" : "band";
+  stats.texts = 0;
   // @endstrip
   chat.render();
   const end = now();
   // @strip profile
-  if (PROFILE) record(chat.phase + " " + kind, start - lastDrawEnd, end - start);
+  if (PROFILE) record(chat.phase + " " + kind, start - lastDrawEnd, end - start, stats.texts);
   lastDrawEnd = end;
   // @endstrip
   frameDue = Math.max(start + FRAME_PERIOD_MS, end + FRAME_SETTLE_MS);
@@ -226,6 +245,45 @@ const AUTOPLAY = [];
 if (!PLAYTEST) {
   AUTOPLAY.forEach((question, index) => setTimeout(() => ask(question), 2500 + index * 9000));
 }
+
+// @strip profile
+if (SCROLL_BENCH) {
+  // First what the firmware's drawing calls cost on their own (tools/bench.c), over the
+  // whole screen and in an icon band's clip; then two pages up and back, twice, a
+  // scroll every 1.2 s.
+  if (Natives.benchDraw) setTimeout(() => {
+    render.begin();
+    render.clip(0, 0, render.width, render.height);
+    Natives.benchDraw(BEEPER_MEDIUM, STREET_MAP, PEN, 0);
+    render.clip(6, 60, 40, 100);
+    Natives.benchDraw(BEEPER_MEDIUM, STREET_MAP, PEN, 1);
+    render.clip();
+    render.clip();
+    render.end();
+    chat.invalidate();
+  }, 2500);
+  const presses = [false, false, true, true, false, false, true, true];
+  presses.forEach((down, index) => setTimeout(() => {
+    trace(`bench ${index + 1}/${presses.length}: ${down ? "down" : "up"}\n`);
+    chat.scroll(down);
+  }, 6000 + index * 1200));
+}
+// @endstrip
+
+// @strip autoreel
+// INDEX_AUTOREEL=N builds play N turns of the reel by themselves, an Up and a Down step
+// after each, to measure memory on the watch with nobody at its buttons.
+const AUTOREEL = 0;
+let reelTurn = 0;
+function reelNext() {
+  if (reelTurn++ >= AUTOREEL) return;
+  talk();
+  setTimeout(() => chat.scroll(false), 8000);
+  setTimeout(() => chat.scroll(true), 8800);
+  setTimeout(reelNext, 9600);
+}
+if (PLAYTEST && AUTOREEL) setTimeout(reelNext, 3000);
+// @endstrip
 
 // Start the sole native timer after startup allocation and UI setup have completed.
 startTimers();

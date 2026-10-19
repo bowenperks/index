@@ -1,0 +1,8 @@
+{
+  "name": "index-alloy-tools",
+  "private": true,
+  "description": "Build-time tools for Index Alloy: terser mangles the bundle's local names (tools/build.sh).",
+  "dependencies": {
+    "terser": "^5"
+  }
+}

@@ -8,11 +8,17 @@ and settled at 37 KB, and XS never returns heap to the app. That peak left too l
 the app's 122 KB for the native side (vector art, the dictation session). Bundling turns
 each module into a function scope inside one module, which loads in a fraction of that.
 
+Each module's exports come out as an array, and importers take them by position: an
+export passed by name would be a property key, and on the watch every distinct name is a
+symbol in the mod and a key in the heap (see tools/build.sh, which then shortens the
+bundle's local names with terser).
+
     python3 tools/bundle.py SOURCE_DIR OUTPUT.js
 
 Supported module syntax (all Index uses): `import X from "m"`, `import {a, b as c} from
-"m"`, `import * as n from "m"`, `export const|let|function|class`, `export default class`.
-Imports of modules outside SOURCE_DIR (the Alloy host's) are kept, deduplicated, at the top.
+"m"`, `import * as n from "m"` (used as `n.name`), `export const|let|function|class`,
+`export default class`. Imports of modules outside SOURCE_DIR (the Alloy host's) are kept,
+deduplicated, at the top.
 """
 from pathlib import Path
 import re
@@ -40,58 +46,79 @@ def module_order(source, entry):
     return order
 
 
-def bindings(clause, specifier, local):
-    """The `const` statement(s) that stand in for one import clause."""
+def module_exports(text):
+    """The module's exports in order: (exported name, local name)."""
+    exports = []
+    for default, _, exported in EXPORT.findall(text):
+        exports.append(('default' if default else exported, exported))
+    # `export const A = 1, B = 2;` declares several names.
+    for declaration in EXPORT_LIST.findall(text):
+        for item in re.findall(r'(?:^|,)\s*([A-Za-z_$][\w$]*)\s*=', declaration):
+            if (item, item) not in exports:
+                exports.append((item, item))
+    return exports
+
+
+def bindings(clause, specifier, index):
+    """The `const` statement that stands in for one import clause, and, for a namespace
+    import, the local name to rewrite member accesses of."""
     target = '$' + re.sub(r'\W', '_', specifier)
-    if not local:
-        return None
-    lines = []
     clause = clause.strip()
     if clause.startswith('* as '):
-        return [f'const {clause[5:].strip()} = {target};']
+        return f'const {clause[5:].strip()} = {target};', clause[5:].strip()
+    names = []
     default, _, named = clause.partition('{')
     default = default.strip().rstrip(',').strip()
     if default:
-        lines.append(f'const {default} = {target}.default;')
+        names.append(f'{default} = {target}[{index["default"]}]')
     if named:
-        names = []
         for part in named.rstrip('}').split(','):
             part = part.strip()
             if not part:
                 continue
             original, _, alias = part.partition(' as ')
-            names.append(f'{original.strip()}: {alias.strip()}' if alias else original.strip())
-        lines.append('const {' + ', '.join(names) + '} = ' + target + ';')
-    return lines
+            original, alias = original.strip(), alias.strip() or original.strip()
+            names.append(f'{alias} = {target}[{index[original]}]')
+    return 'const ' + ', '.join(names) + ';', None
 
 
 def bundle(source, entry='main'):
     host_imports = []
     parts = []
+    indexes = {}
     for name in module_order(source, entry):
         text = (source / (name + '.js')).read_text()
+        namespaces = []
+
         def replace(match):
             clause, specifier = match.groups()
+            clause = ' '.join(clause.split())
             if (source / (specifier + '.js')).exists():
-                return '\n'.join(bindings(' '.join(clause.split()), specifier, True))
-            statement = f'import {' '.join(clause.split())} from "{specifier}";'
+                statement, namespace = bindings(clause, specifier, indexes[specifier])
+                if namespace:
+                    namespaces.append((namespace, specifier))
+                return statement
+            statement = f'import {clause} from "{specifier}";'
             if statement not in host_imports:
                 host_imports.append(statement)
             return ''
         text = IMPORT.sub(replace, text)
-        exports = []
-        for default, _, exported in EXPORT.findall(text):
-            exports.append(f'default: {exported}' if default else exported)
-        # `export const A = 1, B = 2;` declares several names.
-        for declaration in EXPORT_LIST.findall(text):
-            for item in re.findall(r'(?:^|,)\s*([A-Za-z_$][\w$]*)\s*=', declaration):
-                if item not in exports:
-                    exports.append(item)
+        for namespace, specifier in namespaces:
+            index = indexes[specifier]
+
+            def member(match):
+                if match.group(1) not in index:
+                    sys.exit(f'{name}.js: {namespace}.{match.group(1)} is not exported by {specifier}')
+                return f'{namespace}[{index[match.group(1)]}]'
+            text = re.sub(r'\b' + re.escape(namespace) + r'\.([A-Za-z_$][\w$]*)', member, text)
+        exports = module_exports(text)
+        indexes[name] = {exported: position for position, (exported, _) in enumerate(exports)}
         text = re.sub(r'^export\s+(default\s+)?', '', text, flags=re.M)
         if name == entry:
             parts.append(text)
         else:
-            parts.append(f'const ${name} = (() => {{\n{text}\nreturn {{{", ".join(exports)}}};\n}})();\n')
+            locals_ = ', '.join(local for _, local in exports)
+            parts.append(f'const ${name} = (() => {{\n{text}\nreturn [{locals_}];\n}})();\n')
     return '\n'.join(host_imports) + '\n\n' + '\n'.join(parts)
 
 

@@ -3,3 +3,5 @@
 build/
 dist/
 .lock-waf*
+tools/node_modules/
+tools/package-lock.json

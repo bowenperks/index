@@ -80,8 +80,9 @@ records, and its words come in whole. Spoken requests close to the demo's pick t
 same results (a message names its own recipient and words); anything else gets a
 reply listing what to try. Nothing is really sent, set or switched. The build helper
 stages to `/tmp/index-alloy` (set `INDEX_ALLOY_BUILD_DIR` to build elsewhere),
-bundles the JavaScript modules to limit startup memory, and uses the installed
-Pebble SDK's Moddable toolchain.
+bundles the JavaScript modules into one (tools/bundle.py), shortens the bundle's names
+with terser (see Memory; `npm install` in `tools/` fetches it once), and uses the
+installed Pebble SDK's Moddable toolchain.
 
 App timers use `src/embeddedjs/timers.js`, which starts one native clock after UI
 setup. Keep new delays and animation timers on that scheduler: repeatedly adding
@@ -90,37 +91,49 @@ Animations paint on their existing frame tick.
 
 ## Memory
 
-The app has a 122 KB heap, and it is full. The whole compiled mod is loaded into it
-(about 49 KB), XS's heaps grow into most of the rest (about 50 KB of slots, mostly the
-function objects of all the code, and 17 KB of chunks) and never shrink, and native
-art takes what is left: a few KB. Running out does not raise an error: a native
-allocation fails and the app faults (`App fault! PC: 0`). To stay inside:
+The app has a 120 KB heap, and the whole compiled mod is loaded into it, byte for byte.
+Then XS's heaps grow into it as the code loads (a function object for every function,
+a key for every distinct name) and as turns run, and never shrink; native art takes what
+is left. Running out is fatal in one of two ways: XS aborts ("Alloy: Fatal Error, memory
+full"), or a native allocation fails and the app faults (`App fault! PC: 0`, straight
+back to the launcher). An empty mod leaves 104 KB free; Index now leaves about 35 KB at
+launch and 22 KB after ten turns with scrolling, measured on the emulator, whose figures
+match the watch's exactly for the same build. Where the rest went, and what keeps it:
 
-- Code size is RAM twice over: in the mod, and as the function objects XS makes for
-  it. `sh tools/xsb_sizes.sh` prints each module's bytecode size. Code a build does
-  not use is removed by `tools/strip.py` (blocks between `// @strip NAME` and
-  `// @endstrip`): the measuring code unless instrumented, and from the playtest the
-  dictation session, the spoken-request matching (`resolve`), the notice bubble and
-  the page's hiding. `assets.js` lists only the resource ids the modules name.
+- The mod is 41 KB, 34 of it bytecode. Every distinct identifier in it was a symbol in
+  the archive and a 16-byte key in the heap, with its name, until the build began to
+  shorten names: terser mangles the bundle's local names, and its property names too
+  except those the host or the data can reach (`tools/terser-reserved.json`, every
+  identifier in the host's own sources plus the widget names and the FFI table; regenerate
+  it with `tools/reserved_names.py` when the SDK changes). The bundler passes exports by
+  position for the same reason. That took the names from 669 symbols (20 KB of heap all
+  told) to the 110 the host needs. `INDEX_MANGLE=1` keeps property names, `=0` all names,
+  for readable bytecode when debugging.
+- Code a build does not use is removed by `tools/strip.py` (blocks between
+  `// @strip NAME` and `// @endstrip`): the measuring code unless instrumented, and from
+  the playtest the dictation session, the spoken-request matching (`resolve`), the notice
+  bubble and the page's hiding. `assets.js` lists only the resource ids the modules name.
+  `sh tools/xsb_sizes.sh` prints each module's bytecode size.
 - Every live object, closure and table entry costs 16-byte slots; prefer code to
   data tables, keep per-entry properties few, and let go of what a turn made as soon
-  as it lands.
-- The history keeps 7 entries, each with only its wrapped lines. Text caches are
-  small and never hold word-wrap candidates.
+  as it lands. Caches of measured text are not worth it: a width per text per font held
+  several KB that never came back.
+- The history keeps 7 entries, each with only its wrapped lines.
 - Art is looked up per draw (two images cached), so it is freed once off screen. The
   map is a vector image: a bitmap of it would take ~9 KB while shown. Animation frames
   and clones are native memory XS cannot see, so they are collected every second or
   third frame: a collection costs 2 ms on the watch.
-- The voice build also holds a dictation session and has the least room (~8 KB free
-  at rest); test the whole reel on it too.
+- Poco's own row and display-list buffers are unused on Pebble and kept to the least it
+  accepts (theme.js).
 
-`INDEX_INSTRUMENT=1 sh tools/build.sh` adds XS's memory instrumentation (free app
-heap, chunk, slot and stack use, once a second) to `pebble logs`, and a per-turn frame
-profile. The instrumentation lines only come if `pebble logs` was already connected when
-the app launched. Before handing a build over, run the whole reel (ten Select presses
-through `tools/screen.sh`, nine seconds apart) on a fresh emulator and look for `memory
-full` in the log, an `App fault`, or the launcher in the screenshots: the XS abort is
-not a fault.
+Measuring: `INDEX_INSTRUMENT=xs sh tools/build.sh` adds XS's memory instrumentation
+(free app heap, chunk, slot and stack use, once a second) to `pebble logs` without
+changing the app; `=1` adds the per-turn frame profile as well. The instrumentation
+lines only come if `pebble logs` was already connected when the app launched.
+`INDEX_AUTOREEL=10` (with `INDEX_PLAYTEST=1`) plays ten turns by itself, an Up and a
+Down step after each, for the emulator or a watch on the wrist. Before handing a build
+over, run that whole reel on a fresh emulator and look for `memory full` in the log, an
+`App fault`, or the launcher in the screenshots: the XS abort is not a fault.
 
 ## Frame rate
 

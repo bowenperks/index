@@ -4,7 +4,7 @@
 // hardcoded: the address is 10 Berners Street, London.
 import Poco from "commodetto/Poco";
 import {WEATHER_DISC, WEATHER_ICON} from "assets";
-import {render, ink, font, drawText, textWidth, wrap, art} from "theme";
+import {render, ink, font, drawText, textWidth, wrap, art, inBand} from "theme";
 
 export const DEMO = {
   location: "Fitzrovia, London",
@@ -29,7 +29,7 @@ export function drawWeather(card, body, shade) {
   const left = body.x + PADDING_X, top = body.y + PADDING_Y;
   const width = body.w - 2 * PADDING_X;
   const discTop = top + LOCATION_CAP + LOCATION_GAP;
-  if (shade === 255) {
+  if (shade === 255 && inBand(discTop, discTop + DISC)) {
     // Looked up per draw: Alloy caches a resource object only while something holds it, so
     // keeping these would hold the 50px bitmap in the heap after the card scrolls away.
     const disc = art(WEATHER_DISC);
@@ -46,17 +46,22 @@ export function drawWeather(card, body, shade) {
   const forecastTop = discTop + DISC + DISC_GAP;
   const color = ink(shade);
   const right = left + width;
-  const alignRight = (text, f, boxTop) => drawText(text, f, color, right - textWidth(text, f), boxTop);
+  // The right-aligned readings' widths, measured once: the demo's readings are fixed.
+  const widths = card.widths ??= [textWidth(card.condition, font("Gothic-Regular", 18)),
+                                  textWidth(card.temperature, font("Leco-Bold", 36)),
+                                  textWidth(card.range, font("Gothic-Bold", 18))];
   drawText(card.location, font("Gothic-Bold", 28), color, left, top - LOCATION_CAP_TOP);
-  alignRight(card.condition, font("Gothic-Regular", 18), conditionTop - CONDITION_CAP_TOP);
-  alignRight(card.temperature, font("Leco-Bold", 36), temperatureTop - TEMPERATURE_CAP_TOP);
-  alignRight(card.range, font("Gothic-Bold", 18), rangeTop - RANGE_CAP_TOP);
+  drawText(card.condition, font("Gothic-Regular", 18), color, right - widths[0],
+           conditionTop - CONDITION_CAP_TOP);
+  drawText(card.temperature, font("Leco-Bold", 36), color, right - widths[1],
+           temperatureTop - TEMPERATURE_CAP_TOP);
+  drawText(card.range, font("Gothic-Bold", 18), color, right - widths[2], rangeTop - RANGE_CAP_TOP);
   // The forecast is fixed, so it is wrapped once and kept with the card: wrapping it again
   // every frame would be garbage, and collections stall motion on the watch.
   const forecastFont = font("Gothic-Bold", 14);
   const lines = card.forecastLines ??= wrap(card.forecast, forecastFont, width);
+  const lineHeight = card.forecastHeight ??= forecastFont.height;
   for (let index = 0; index < lines.length; index++) {
-    drawText(lines[index], forecastFont, color, left,
-             forecastTop - FORECAST_CAP_TOP + index * forecastFont.height);
+    drawText(lines[index], forecastFont, color, left, forecastTop - FORECAST_CAP_TOP + index * lineHeight);
   }
 }

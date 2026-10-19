@@ -10,7 +10,15 @@
 # asks those questions by itself after launch (for the emulator, which has no microphone).
 # INDEX_PLAYTEST=1 builds dist/index-alloy-playtest.pbw: Select advances one example at a time.
 # INDEX_INSTRUMENT=1 adds XS memory instrumentation (slot, chunk and stack use, free app
-# heap) to the build's log, readable with `pebble logs` while a log listener is connected.
+# heap) and a per-turn frame profile to the build's log, readable with `pebble logs` while
+# a log listener is connected.
+# INDEX_INSTRUMENT=xs adds only XS's memory instrumentation, without the profile's code,
+# so the figures are the plain build's. INDEX_AUTOREEL=N (with INDEX_PLAYTEST=1) plays N
+# turns by itself, an Up and a Down step after each.
+# INDEX_SCROLLBENCH=1 makes the app press Up and Down by itself after launch and log each
+# scroll's frames, to measure scrolling on the watch; =2 first also times the firmware's
+# drawing calls (tools/bench.c). It keeps the profile but not XS's instrumentation, which
+# costs memory the bench does not have on the watch (add INDEX_INSTRUMENT=1 for both).
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BUILD_DIR=${INDEX_ALLOY_BUILD_DIR:-/tmp/index-alloy}
@@ -22,14 +30,31 @@ fi
 python3 "$ROOT/tools/build_assets.py"
 mkdir -p "$BUILD_DIR"
 rsync -a --delete --exclude build --exclude dist --exclude '.lock-waf*' --exclude '._*' \
-  --exclude .DS_Store "$ROOT/" "$BUILD_DIR/"
+  --exclude .DS_Store --exclude node_modules "$ROOT/" "$BUILD_DIR/"
 OUTPUT=index-alloy.pbw
-if [ "${INDEX_INSTRUMENT:-0}" = 1 ]; then
+if [ "${INDEX_INSTRUMENT:-0}" = 1 ] || [ "${INDEX_INSTRUMENT:-0}" = xs ]; then
   sed -i '' 's/^    \.fxBuildFFI = fxBuildFFI,$/    .flags = kModdableCreationFlagLogInstrumentation, .fxBuildFFI = fxBuildFFI,/' \
     "$BUILD_DIR/src/c/mdbl.c"
   grep -q kModdableCreationFlagLogInstrumentation "$BUILD_DIR/src/c/mdbl.c" || { echo "INSTRUMENT not applied" >&2; exit 1; }
+fi
+if [ "${INDEX_INSTRUMENT:-0}" = 1 ] || [ "${INDEX_SCROLLBENCH:-0}" != 0 ]; then
   sed -i '' 's/^const PROFILE = false;$/const PROFILE = true;/' "$BUILD_DIR/src/embeddedjs/main.js"
   grep -q "^const PROFILE = true;" "$BUILD_DIR/src/embeddedjs/main.js" || { echo "PROFILE not applied" >&2; exit 1; }
+  if [ "${INDEX_SCROLLBENCH:-0}" != 0 ]; then
+    sed -i '' 's/^const SCROLL_BENCH = false;$/const SCROLL_BENCH = true;/' "$BUILD_DIR/src/embeddedjs/main.js"
+    grep -q "^const SCROLL_BENCH = true;" "$BUILD_DIR/src/embeddedjs/main.js" || { echo "SCROLL_BENCH not applied" >&2; exit 1; }
+  fi
+  if [ "${INDEX_SCROLLBENCH:-0}" = 2 ]; then
+    # The drawing micro-benchmark is C (no JavaScript memory) and only in this build.
+    cp "$ROOT/tools/bench.c" "$BUILD_DIR/src/c/bench.c"
+    python3 - "$BUILD_DIR/src/embeddedjs/manifest.json" <<'PY'
+import json, sys
+manifest = json.load(open(sys.argv[1]))
+manifest["ffi"]["sources"].append("./bench.c")
+manifest["ffi"]["functions"]["benchDraw"] = {"arguments": ["int32_t"] * 4, "returns": "void"}
+json.dump(manifest, open(sys.argv[1], "w"), indent="\t")
+PY
+  fi
 fi
 if [ "${INDEX_PLAYTEST:-0}" = 1 ]; then
   python3 - "$BUILD_DIR/src/embeddedjs/main.js" <<'PY'
@@ -51,12 +76,41 @@ fi
 # Code this build does not use is removed before bundling (see tools/strip.py): the
 # measuring code unless instrumented, the dictation code from the playtest.
 STRIP=""
-[ "${INDEX_INSTRUMENT:-0}" = 1 ] || STRIP="$STRIP profile"
+[ "${INDEX_INSTRUMENT:-0}" = 1 ] || [ "${INDEX_SCROLLBENCH:-0}" != 0 ] || STRIP="$STRIP profile"
 [ "${INDEX_PLAYTEST:-0}" = 1 ] && STRIP="$STRIP dictation"
+if [ -n "${INDEX_AUTOREEL:-}" ]; then
+  sed -i '' "s/^const AUTOREEL = 0;$/const AUTOREEL = $INDEX_AUTOREEL;/" "$BUILD_DIR/src/embeddedjs/main.js"
+  grep -q "^const AUTOREEL = $INDEX_AUTOREEL;" "$BUILD_DIR/src/embeddedjs/main.js" || { echo "AUTOREEL not applied" >&2; exit 1; }
+else
+  STRIP="$STRIP autoreel"
+fi
 python3 "$ROOT/tools/strip.py" "$BUILD_DIR/src/embeddedjs" $STRIP
 # One module on the watch (see tools/bundle.py); the source stays modular.
 python3 "$ROOT/tools/bundle.py" "$BUILD_DIR/src/embeddedjs" "$BUILD_DIR/main.bundle.js"
 mv "$BUILD_DIR/main.bundle.js" "$BUILD_DIR/src/embeddedjs/main.js"
+# The bundle's local names are shortened and its literal constants folded in (terser,
+# tools/terser.json; `npm install` in tools/ fetches it). On the watch every distinct name
+# is a symbol in the mod and a key in the heap, and every module constant a closure slot:
+# together a fifth of the app's memory. Property names are never touched: the host reads
+# them. INDEX_MANGLE=0 skips this, for readable bytecode when debugging.
+if [ "${INDEX_MANGLE:-1}" != 0 ]; then
+  TERSER="$ROOT/tools/node_modules/.bin/terser"
+  [ -x "$TERSER" ] || { echo "terser missing: run npm install in tools/" >&2; exit 1; }
+  # Index's own property names (a card's `lines`, Chat's methods) are shortened as well,
+  # all but the names the host or the data could reach: tools/terser-reserved.json, made by
+  # tools/reserved_names.py from the host's sources. INDEX_MANGLE=1 keeps property names.
+  python3 - "$ROOT/tools/terser.json" "$ROOT/tools/terser-reserved.json" "${INDEX_MANGLE:-2}" \
+    "$BUILD_DIR/terser.json" <<'PY'
+import json, sys
+config = json.load(open(sys.argv[1]))
+if sys.argv[3] == "2":
+    config["mangle"]["properties"] = {"regex": "^[A-Za-z_][A-Za-z0-9_]{3,}$", "keep_quoted": True,
+                                      "reserved": json.load(open(sys.argv[2]))}
+json.dump(config, open(sys.argv[4], "w"))
+PY
+  "$TERSER" "$BUILD_DIR/src/embeddedjs/main.js" --config-file "$BUILD_DIR/terser.json" \
+    -o "$BUILD_DIR/src/embeddedjs/main.js"
+fi
 python3 - "$BUILD_DIR/src/embeddedjs/manifest.json" <<'PY'
 import json, sys
 manifest = json.load(open(sys.argv[1]))

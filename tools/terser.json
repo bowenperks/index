@@ -1,0 +1,24 @@
+{
+  "module": true,
+  "ecma": 2020,
+  "compress": {
+    "passes": 2,
+    "toplevel": true,
+    "unsafe": false,
+    "inline": 1,
+    "keep_fargs": false,
+    "hoist_funs": false,
+    "pure_getters": false,
+    "drop_console": false
+  },
+  "mangle": {
+    "toplevel": true,
+    "properties": false,
+    "reserved": ["Natives", "trace", "watch", "device", "screen", "globalThis"]
+  },
+  "format": {
+    "comments": false,
+    "ecma": 2020,
+    "ascii_only": false
+  }
+}
