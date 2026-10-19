@@ -41,11 +41,11 @@ const SLOT_HEIGHT = 80, SLOT_CENTRE = 36;
 // While Index thinks, the cube sits at the bottom left (its art spans 35px either side of
 // its centre at most). The typing bubble fills the rest of the row, from beside the cube
 // to the user's bubbles' margin, and is the cube's height: its art (tools/build_assets.py)
-// starts 30px above the cube's centre, level with the cube's top, and its tail's tip meets
-// the cube's bottom. Its 99 x 66 body sits 5px right of the art's left edge, which is the
-// tail; its dots are 10px, 20px apart.
+// starts 30px above the cube's centre, level with the cube's top, and its 69px body ends
+// level with the cube's bottom. The body sits 5px right of the art's left edge, which is
+// the tail's tip; its dots are 10px, 20px apart.
 const CUBE_X = 44, TYPING_X = 89, TYPING_TAIL = 5, TYPING_ABOVE = 30;
-const TYPING_WIDTH = 99, TYPING_BODY = 66, TYPING_DOT = 5, TYPING_PITCH = 20;
+const TYPING_WIDTH = 99, TYPING_BODY = 69, TYPING_DOT = 5, TYPING_PITCH = 20;
 const SLIDE_MS = 220, TYPING_FADE_MS = 200, TYPING_STEP_MS = 220;
 // The recording's bubble: the waveform in a pill.
 const VOICE_PADDING = 12, VOICE_HEIGHT = 36;

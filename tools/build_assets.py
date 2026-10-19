@@ -180,21 +180,22 @@ def inset(points, distance):
 def typing_bubble():
     # Index's typing bubble beside the thinking cube, built like the cube itself: a black
     # shape with a white one 2px inside it, so its 2px lines match the cube's. The body runs
-    # from x 5 for 99px and is 66px tall; the tail's tip at (0, 69) lands on the cube's
-    # bottom as the body's top meets the cube's top (the cube spans 70px at rest).
-    left, top, right, bottom, radius, weight = 5, 0, 104, 66, 8, 2
+    # from x 5 for 99px and is the cube's full height, 69px (the cube's ink spans 69 rows
+    # at rest, from the top face's back corner to the front bottom corner); the tail's tip
+    # sits on the bottom line, so nothing reaches above or below the cube.
+    left, top, right, bottom, radius, weight = 5, 0, 104, 69, 8, 2
     def arc(cx, cy, start):
         return [(cx + radius * math.cos(math.radians(start + 15 * step)),
                  cy + radius * math.sin(math.radians(start + 15 * step))) for step in range(7)]
     outer = (arc(left + radius, top + radius, 180) + arc(right - radius, top + radius, 270) +
              arc(right - radius, bottom - radius, 0) +
-             # The bottom edge runs into the tail, which sweeps down and left to its tip and
-             # back up into the left edge, as Index's reply bubbles' tails do.
-             [(left + 13, bottom), (0, bottom + 3), (left, bottom - 9)])
+             # The bottom edge runs straight on into the tail's tip, which turns back up
+             # into the left edge.
+             [(0, bottom), (left, bottom - 11)])
     def path(points, fill):
         return (struct.pack('<5B2H', 3, 0, 0, 0, fill, 0, len(points)) +
                 b''.join(struct.pack('<2h', round(x * 8), round(y * 8)) for x, y in points))
-    return image(right + 1, bottom + 4, [path(outer, BLACK), path(inset(outer, weight), WHITE)])
+    return image(right + 1, bottom + 1, [path(outer, BLACK), path(inset(outer, weight), WHITE)])
 
 
 def microphone():
