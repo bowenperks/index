@@ -29,6 +29,19 @@ export function ink(opacity) {
   return render.makeColor(shade, shade, shade);
 }
 
+// Vector art by resource id, the last few used kept. `new PebbleDrawCommandImage` returns
+// Alloy's cached image but first makes a throwaway object, and on the watch that garbage,
+// for every card every frame, forces collections that stall motion.
+const arts = new Map();
+export function art(id) {
+  let image = arts.get(id);
+  if (!image) {
+    if (arts.size >= 4) arts.delete(arts.keys().next().value);
+    arts.set(id, image = new Poco.PebbleDrawCommandImage(id));
+  }
+  return image;
+}
+
 // Poco's frameRoundRect strokes at the graphics context's current width, which drawing a
 // PDC leaves at its last command's width (the icons' 2-3px). Drawing a 1px line off screen
 // sets it back to 1 before an outline.
@@ -51,8 +64,13 @@ export function font(family, size) {
 
 // Text is placed as the native app placed graphics_draw_text boxes: by the box's top.
 // Poco positions a line by its cap height instead, offset by the font's cap bearing.
+// Worked out once per font: reading a font's metrics is a call into native code, and text
+// is drawn many times a frame.
+const capOffsets = new Map();
 function capOffset(f) {
-  return f.height - f.ascent - 1;
+  let offset = capOffsets.get(f);
+  if (offset === undefined) capOffsets.set(f, offset = f.height - f.ascent - 1);
+  return offset;
 }
 
 export function drawText(text, f, color, x, top) {

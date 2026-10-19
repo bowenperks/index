@@ -14,7 +14,7 @@ import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
 import * as assets from "assets";
 import {Animation, NORMAL_MAX, easeInOut, easeOut, now} from "motion";
 import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
-        ink, font, drawText, textWidth, measure, resetPen} from "theme";
+        ink, font, drawText, textWidth, measure, resetPen, art} from "theme";
 import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
@@ -114,9 +114,13 @@ export default class Chat {
       this.textTop = 10;
       this.textDescender = 4;
     }
+    this.lineHeight = this.font.height;   // read once: font metrics are a native call
     this.tail = new Poco.PebbleDrawCommandImage(assets.BUBBLE_TAIL).clone();
     this.thinking = new Thinking(() => this.invalidateSlot(), () => this.thinkingDone());
-    this.transition = new IconTransition(invalidate, () => this.landResult(), () => this.finishTurn());
+    // The result's icon unfolds and holds within the voice input's band, then flies across
+    // the page.
+    this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidate() : this.invalidateSlot(),
+                                         () => this.landResult(), () => this.finishTurn());
     this.micUnfold = new IconTransition(() => this.invalidateSlot(), undefined, () => this.idle());
     for (const [day, widget, text] of HISTORY) {
       this.items.push(day ? this.size({type: "day", text: day}) : this.makeResult(widget, text));
@@ -133,7 +137,7 @@ export default class Chat {
   }
 
   textHeight(lines) {
-    return lines.length * this.font.height - this.textTop + this.textDescender;
+    return lines.length * this.lineHeight - this.textTop + this.textDescender;
   }
 
   // Sizes an entry once; the page's fonts and width do not change while it runs.
@@ -403,15 +407,23 @@ export default class Chat {
   }
 
   // The position bar shows while the reader scrolls and slips away half a second after
-  // the page comes to rest. Programmatic scrolls never summon it.
+  // the page comes to rest. Programmatic scrolls never summon it. A drag calls this for
+  // every touch sample, so it only moves the deadline; one timer checks it.
   showBar() {
-    if (this.barTimer !== undefined) clearTimeout(this.barTimer);
-    this.barTimer = setTimeout(() => {
-      this.barTimer = undefined;
-      this.barVisible = false;
-      this.invalidate();
-    }, 500);
+    this.barUntil = now() + 500;
     this.barVisible = true;
+    this.invalidate();
+    if (this.barTimer === undefined) this.barTimer = setTimeout(() => this.hideBar(), 500);
+  }
+
+  hideBar() {
+    const left = this.barUntil - now();
+    if (left > 0) {
+      this.barTimer = setTimeout(() => this.hideBar(), left);
+      return;
+    }
+    this.barTimer = undefined;
+    this.barVisible = false;
     this.invalidate();
   }
 
@@ -507,12 +519,12 @@ export default class Chat {
     const dirty = this.dirty;
     this.dirty = undefined;
     if (dirty === undefined) return;
-    if (dirty === true || this.transition.active || this.notice) {
+    if (dirty === true || this.transition.isFlying || this.notice) {
       render.begin();
       this.draw(0, HEIGHT);
     } else {
-      const top = Math.max(this.headerHeight, dirty[0] - this.offset);
-      const bottom = Math.min(HEIGHT, dirty[1] - this.offset);
+      const top = Math.max(this.headerHeight, this.dirtyTop - this.offset);
+      const bottom = Math.min(HEIGHT, this.dirtyBottom - this.offset);
       if (bottom <= top) return;
       render.begin(0, top, WIDTH, bottom - top);
       this.draw(top, bottom);
@@ -520,35 +532,45 @@ export default class Chat {
     render.end();
   }
 
-  // Marks part of the page (page coordinates) to be repainted.
+  // Marks part of the page (page coordinates) to be repainted: `dirty` is true for the
+  // whole screen, or "area" for the band from dirtyTop to dirtyBottom.
   invalidateArea(top, bottom) {
-    if (this.dirty !== true) {
-      this.dirty = this.dirty ? [Math.min(this.dirty[0], top), Math.max(this.dirty[1], bottom)] : [top, bottom];
+    if (this.dirty === undefined) {
+      this.dirty = "area";
+      this.dirtyTop = top;
+      this.dirtyBottom = bottom;
+    } else if (this.dirty !== true) {
+      this.dirtyTop = Math.min(this.dirtyTop, top);
+      this.dirtyBottom = Math.max(this.dirtyBottom, bottom);
     }
     this.requestDraw();
   }
 
+  // The voice input's band, with 8px either side for an unfolding icon's overshoot.
   invalidateSlot() {
-    this.invalidateArea(this.slotTop, this.slotTop + SLOT_HEIGHT);
+    this.invalidateArea(this.slotTop - 8, this.slotTop + SLOT_HEIGHT + 8);
   }
 
   // Draws the screen rows from `top` to `bottom`: the whole screen, or a band of it.
   draw(top, bottom) {
     render.fillRectangle(WHITE, 0, top, WIDTH, bottom - top);
-    const offset = this.offset;
-    for (const item of this.items) {
-      const y = item.y - offset + item.rise;
+    const offset = this.offset, items = this.items;
+    // An indexed loop: for...of makes an iterator, every frame.
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index], y = item.y - offset + item.rise;
       if (y + item.h > top && y < bottom) this.drawItem(item, y);
     }
     this.drawSlot(this.slotTop - offset);
+    // The result's icon unfolding and holding, in the voice input's band.
+    if (this.transition.active && !this.transition.isFlying) this.transition.draw();
     if (top > 0) return;
     // The time bar, and the position bar while the reader scrolls.
     render.fillRectangle(WHITE, 0, 0, WIDTH, this.headerHeight);
     drawText(this.clock, this.clockFont, ink(255), (WIDTH - textWidth(this.clock, this.clockFont)) >> 1, this.clockTop);
     render.drawLine(8, this.headerHeight - 1, WIDTH - 8, this.headerHeight - 1, DARK_GRAY, 1);
     if (this.barVisible) this.drawScrollBar();
-    // The widget's icon unfolds over the page, then flies into its card's header.
-    if (this.transition.active) this.transition.draw();
+    // The widget's icon flying over the page into its card.
+    if (this.transition.isFlying) this.transition.draw();
     if (this.notice) {
       const h = this.textHeight(this.notice) + 18;
       this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255);
@@ -602,7 +624,7 @@ export default class Chat {
     for (let index = 0; index <= last; index++) {
       const line = lines[index];
       const left = width && index === last ? x + ((width - textWidth(line, this.font)) >> 1) : x;
-      drawText(line, this.font, color, left, top + index * this.font.height);
+      drawText(line, this.font, color, left, top + index * this.lineHeight);
     }
   }
 
@@ -618,7 +640,8 @@ export default class Chat {
   drawCard(item, y) {
     const {x, w, shade} = item;
     if (!shade) return;
-    const [icon, , body, source] = WIDGETS[item.widget];
+    // Indexed, not destructured: destructuring makes an iterator, every card, every frame.
+    const widget = WIDGETS[item.widget], icon = widget[0], body = widget[2], source = widget[3];
     const h = item.card, edge = y + h - 1, quiet = ink(Math.min(shade, 170));
     render.drawRoundRect(x, y, w, h, WHITE, CARD_RADIUS, GCORNERS_ALL);
     resetPen();
@@ -628,7 +651,7 @@ export default class Chat {
     render.fillRectangle(WHITE, x, edge - CUT_HEIGHT + 1, CUT_WIDTH, CUT_HEIGHT);
     // The icon, once the card is fully revealed and the flying icon has landed.
     const iconTop = y + this.iconTop(item);
-    if (shade === 255 && item !== this.landing) render.drawDCI(new Poco.PebbleDrawCommandImage(icon), x, iconTop);
+    if (shade === 255 && item !== this.landing) render.drawDCI(art(icon), x, iconTop);
     if (body === "weather") {
       drawWeather(WEATHER_DEMO, {x, y: y + 1, w}, shade);
     } else if (body) {
@@ -672,12 +695,19 @@ export default class Chat {
     // One recolourable copy of the art (only a copy can be processed) is made and kept: a
     // copy per frame would be native memory XS cannot see. Its first shape is the black one
     // that leaves the lines.
-    this.typingArt ??= new Poco.PebbleDrawCommandImage(assets.TYPING_BUBBLE).clone();
-    let first = true;
-    this.typingArt.process(command => {
-      if (first) command.fill = ink(shade);
-      first = false;
-    });
+    if (!this.typingArt) {
+      this.typingArt = new Poco.PebbleDrawCommandImage(assets.TYPING_BUBBLE).clone();
+      this.typingShade = undefined;
+    }
+    if (this.typingShade !== shade) {
+      // Recoloured only as the fade steps, not every frame.
+      let first = true;
+      this.typingArt.process(command => {
+        if (first) command.fill = ink(shade);
+        first = false;
+      });
+      this.typingShade = shade;
+    }
     const y = cy - TYPING_ABOVE;
     render.drawDCI(this.typingArt, TYPING_X - TYPING_TAIL, y);
     const active = Math.trunc(now() / TYPING_STEP_MS) % 4;

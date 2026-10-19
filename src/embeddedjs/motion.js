@@ -90,9 +90,16 @@ export class Animation {
   }
 }
 
+// The animations to step this tick, copied into one reused array: a fresh copy every
+// tick is garbage, and collections stall motion on the watch.
+const stepping = [];
+
 function tick() {
   const time = now();
-  for (const animation of running.slice()) {
+  stepping.length = 0;
+  for (let index = 0; index < running.length; index++) stepping.push(running[index]);
+  for (let index = 0; index < stepping.length; index++) {
+    const animation = stepping[index];
     if (!animation.scheduled) continue;
     const elapsed = time - animation.started;
     const progress = animation.duration > 0

@@ -5,7 +5,7 @@
 // function that measures its body (called without a frame) or draws it.
 import Poco from "commodetto/Poco";
 import {STREET_MAP, PIN_ICON} from "assets";
-import {render, LIGHT_GRAY, COBALT, ink, font, drawText, textWidth, resetPen} from "theme";
+import {render, LIGHT_GRAY, COBALT, ink, font, drawText, textWidth, resetPen, art} from "theme";
 
 const PADDING = 10, BOX = 12;
 // The map, inset 6px inside the card's top and sides (clear of its rounded corners); its
@@ -77,11 +77,11 @@ function translate() {
 function map() {
   if (frame && shade === 255) {
     const x = frame.x + ((frame.w - MAP_WIDTH) >> 1);
-    render.drawDCI(new Poco.PebbleDrawCommandImage(STREET_MAP), x, y);
+    render.drawDCI(art(STREET_MAP), x, y);
     // The street's name, its cap ink centred on the street (y 24-34).
     drawText("EASTCASTLE ST", font("Gothic-Bold", 14), ink(170), x + 6, y + 20);
     render.drawCircle(render.makeColor(170, 255, 255), x + PLACE_X, y + PLACE_Y, 9);
-    render.drawDCI(new Poco.PebbleDrawCommandImage(PIN_ICON), x + PLACE_X - PIN_TIP_X, y + PLACE_Y - PIN_TIP_Y);
+    render.drawDCI(art(PIN_ICON), x + PLACE_X - PIN_TIP_X, y + PLACE_Y - PIN_TIP_Y);
   } else if (frame) {
     render.fillRectangle(ink(Math.min(shade, 85)), frame.x + MAP_INSET, y, MAP_WIDTH, MAP_HEIGHT);
   }

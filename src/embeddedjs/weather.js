@@ -4,7 +4,7 @@
 // hardcoded: the address is 10 Berners Street, London.
 import Poco from "commodetto/Poco";
 import {WEATHER_DISC, WEATHER_ICON} from "assets";
-import {render, ink, font, drawText, textWidth, drawWrapped} from "theme";
+import {render, ink, font, drawText, textWidth, drawWrapped, art} from "theme";
 
 export const DEMO = {
   location: "Fitzrovia, London",
@@ -32,7 +32,7 @@ export function drawWeather(card, body, shade) {
   if (shade === 255) {
     // Looked up per draw: Alloy caches a resource object only while something holds it, so
     // keeping these would hold the 50px bitmap in the heap after the card scrolls away.
-    const disc = new Poco.PebbleDrawCommandImage(WEATHER_DISC);
+    const disc = art(WEATHER_DISC);
     const icon = new Poco.PebbleBitmap(WEATHER_ICON);
     const cx = left + DISC / 2, cy = discTop + DISC / 2;
     render.drawDCI(disc, cx - DISC / 2, cy - DISC / 2);
