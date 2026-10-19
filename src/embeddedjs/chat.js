@@ -27,16 +27,17 @@ const CAPACITY = 10;   // history entries (results and day labels) kept, to boun
 // against the right margin; cards take a narrower margin on both sides and have no tail.
 const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6;
 // Widget cards have no header: the card is all information. Its bottom-left corner is cut
-// away (the frame stops 40px in from the left and 11px up from the bottom) and the widget's
-// 36px icon sits in the cutout, rising 7px above the bottom edge and hanging below it; the
-// widget's name is set underneath the card, to the icon's right and centred on it, so the
-// caption row takes 29px below the card.
+// away (the frame stops 40px in from the left and 19px up from the bottom) and the widget's
+// 36px icon sits in the cutout, rising 15px above the bottom edge and hanging below it.
+// The widget's name is set underneath the card, its caps 3px below the bottom edge,
+// centred along the edge from the cutout to the card's right. The caption row takes 21px
+// below the card.
 const CARD_RADIUS = 7, WIDGET_BODY = 154;
-const CUT_WIDTH = 40, CUT_HEIGHT = 11, ICON_ABOVE = 7, CAPTION_BELOW = 29;
+const CUT_WIDTH = 40, CUT_HEIGHT = 19, ICON_ABOVE = 15, CAPTION_GAP = 4, CAPTION_BELOW = 21;
 // Content near the bottom clears the cutout: text cards' ink (descenders included) ends
-// at least 14px above the bottom edge; the rich bodies' bottom padding is measured from
-// their last row's caps, so they get 7px more for its descenders and the gap.
-const CUT_CLEARANCE = CUT_HEIGHT + 3, BODY_CLEARANCE = 7;
+// at least 22px above the bottom edge; the rich bodies' bottom padding is measured from
+// their last row's caps, so they get 15px more for its descenders and the gap.
+const CUT_CLEARANCE = CUT_HEIGHT + 3, BODY_CLEARANCE = CUT_HEIGHT - 4;
 const WIDGET_ICON = 36, WIDGET_DOT_RADIUS_Q8 = 4 * 256;   // the notification peek's 9px dot
 // A card's text is set like a notification's body, at the card's 10px inset, with a text
 // bubble's 9px above; a source line, if any, follows in small type.
@@ -605,11 +606,11 @@ export default class Chat {
     // The icon, once the card is fully revealed and the flying icon has landed.
     const iconTop = y + this.iconTop(item);
     if (shade === 255 && item !== this.landing) render.drawDCI(new Poco.PebbleDrawCommandImage(icon), x, iconTop);
-    // The name, its cap ink centred on the icon, starting where the bottom edge resumes.
-    const room = w - CUT_WIDTH - 2;
-    const [face, capTop, cap] = this.captions.find(([f]) => textWidth(label, f) <= room) ?? this.captions.at(-1);
-    drawText(label, face, ink(shade), x + CUT_WIDTH + 1,
-             iconTop + (WIDGET_ICON >> 1) - (cap >> 1) - capTop);
+    // The name under the card, centred along the bottom edge from the cutout to the right.
+    const room = w - CUT_WIDTH;
+    const [face, capTop] = this.captions.find(([f]) => textWidth(label, f) <= room) ?? this.captions.at(-1);
+    drawText(label, face, ink(shade), x + CUT_WIDTH + ((room - textWidth(label, face)) >> 1),
+             edge + CAPTION_GAP - capTop);
     if (body === "weather") {
       drawWeather(WEATHER_DEMO, {x, y: y + 1, w}, shade);
     } else if (body) {
