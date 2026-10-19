@@ -30,8 +30,8 @@ const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6
 // away (the frame stops 40px in from the left and 19px up from the bottom) and the widget's
 // 36px icon sits in the cutout, rising 15px above the bottom edge and hanging below it.
 // The widget's name is set underneath the card, its caps 3px below the bottom edge,
-// centred along the edge from the cutout to the card's right. The caption row takes 21px
-// below the card.
+// centred between the card's left and right edges. The caption row takes 21px below the
+// card.
 const CARD_RADIUS = 7, WIDGET_BODY = 154;
 const CUT_WIDTH = 40, CUT_HEIGHT = 19, ICON_ABOVE = 15, CAPTION_GAP = 4, CAPTION_BELOW = 21;
 // Content near the bottom clears the cutout: text cards' ink (descenders included) ends
@@ -606,11 +606,12 @@ export default class Chat {
     // The icon, once the card is fully revealed and the flying icon has landed.
     const iconTop = y + this.iconTop(item);
     if (shade === 255 && item !== this.landing) render.drawDCI(new Poco.PebbleDrawCommandImage(icon), x, iconTop);
-    // The name under the card, centred along the bottom edge from the cutout to the right.
-    const room = w - CUT_WIDTH;
+    // The name under the card, centred between the card's left and right edges (a name
+    // too long to clear the icon there, at the largest text size, moves right of it).
+    const room = w - WIDGET_ICON - 4;
     const [face, capTop] = this.captions.find(([f]) => textWidth(label, f) <= room) ?? this.captions.at(-1);
-    drawText(label, face, ink(shade), x + CUT_WIDTH + ((room - textWidth(label, face)) >> 1),
-             edge + CAPTION_GAP - capTop);
+    const left = Math.max(x + ((w - textWidth(label, face)) >> 1), x + WIDGET_ICON + 2);
+    drawText(label, face, ink(shade), left, edge + CAPTION_GAP - capTop);
     if (body === "weather") {
       drawWeather(WEATHER_DEMO, {x, y: y + 1, w}, shade);
     } else if (body) {
