@@ -20,9 +20,9 @@ import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
 import {drawMic, Waveform} from "mic";
-import {HISTORY} from "prompts";
+import {history} from "prompts";
 
-const CAPACITY = 8;   // history entries (results and day labels) kept, to bound memory
+const CAPACITY = 7;   // history entries (results and day labels) kept, to bound memory
 // Index's replies sit at the left margin with a tail; the user's bubbles are solid pills
 // against the right margin; cards take a narrower margin on both sides and have no tail.
 const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6;
@@ -121,7 +121,7 @@ export default class Chat {
     this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidateFlight() : this.invalidateSlot(),
                                          () => this.landResult(), () => this.finishTurn());
     this.micUnfold = new IconTransition(() => this.invalidateSlot(), undefined, () => this.idle());
-    for (const [day, widget, text] of HISTORY) {
+    for (const [day, widget, text] of history()) {
       this.items.push(day ? this.size({type: "day", text: day}) : this.makeResult(widget, text));
     }
     this.refreshTime();
@@ -190,6 +190,9 @@ export default class Chat {
   // Places every entry down the page below the time bar, then the voice input's slot. A
   // short history sits at the bottom of the screen, as a messaging app's does.
   layout() {
+    // A natural pause (an entry was added or removed): the turn's dropped art and entries
+    // are freed here, a 2ms pause on the watch, before the next animation loads its own.
+    Debug.gc();
     let top = this.headerHeight + GAP;
     for (const item of this.items) {
       item.y = top;
@@ -353,7 +356,9 @@ export default class Chat {
 
   landResult() {
     const [index, item] = this.pending;
-    this.pending = undefined;
+    // The question's entry is let go now, not at the next turn: everything kept alive
+    // between turns is memory the next turn's art cannot have.
+    this.pending = this.query = this.prepared = undefined;
     this.items.splice(index, 1, item);
     item.shade = 0;
     item.rise = RISE;

@@ -5,12 +5,16 @@
 // and the result takes their place. Up and Down (or a touch drag) scroll the history.
 // Everything is drawn with Poco into the watch's frame buffer.
 import Button from "pebble/button";
+// @strip dictation
 import Dictation from "pebble/dictation";
+// @endstrip
 import Chat from "chat";
 import {DEMO, resolve} from "prompts";
 import {onFrame, isAnimating, now} from "motion";
 import {setTimeout, startTimers} from "timers";
+// @strip profile
 import {cubeStats} from "thinking";
+// @endstrip
 
 // The build helper enables this only in the Select-driven playtest package, which asks
 // the demo reel's requests in turn with a simulated recording instead of dictation.
@@ -29,8 +33,14 @@ let dictating = false;
 // task, and when the display is still busy it defers that copy to a later moment. A frame
 // drawn into the buffer too soon can then be copied half done: a white flash, icons gone
 // for a moment. So a frame is never started until the previous one has had FRAME_GAP_MS
-// to reach the display (its copy takes well under that).
-const FRAME_GAP_MS = 24;
+// to reach the display.
+//
+// The firmware also flushes the whole screen to the display for every frame, whatever
+// changed, which takes about 40ms on the watch: frames cannot come faster than every
+// ~50ms however little they draw. Measured, frames then landed one or two 33ms ticks
+// apart at random, which reads as stutter. With the gap at 40ms every frame takes two
+// ticks: a steady 15 a second, which looks smoother than a jittery 20.
+const FRAME_GAP_MS = 40;
 let lastDraw = 0, lastDrawEnd = -FRAME_GAP_MS;
 function invalidate() {
   drawPending = true;
@@ -48,6 +58,7 @@ function armDraw() {
 // drawn, how long they took, and the longest wait between frames, and log it all once the
 // turn is over (logging during it would itself delay frames), to find stalls on the watch.
 const PROFILE = false;
+// @strip profile
 const profile = PROFILE ? {} : undefined;
 let profiling = false;
 
@@ -76,6 +87,7 @@ function record(key, gap, draw) {
   }
   profiling = true;
 }
+// @endstrip
 
 function draw() {
   if (!drawPending) return;
@@ -94,7 +106,9 @@ function draw() {
   const kind = chat.dirty === true ? "full" : "band";
   chat.render();
   const end = now();
+  // @strip profile
   if (PROFILE) record(chat.phase + " " + kind, lastDraw - lastDrawEnd, end - lastDraw);
+  // @endstrip
   lastDrawEnd = end;
 }
 
@@ -128,6 +142,7 @@ function queuePlayNext() {
   }, 33);
 }
 
+// @strip dictation
 const dictation = PLAYTEST ? undefined : new Dictation({
   byteLength: 160,
   onReadable() {
@@ -161,11 +176,14 @@ function dictationFinished() {
   // Repaint once the dictation window has finished leaving, too.
   setTimeout(invalidate, 350);
 }
+// @endstrip
 
 // Select, or a tap on the microphone.
 function talk() {
   if (PLAYTEST) queuePlayNext();
+  // @strip dictation
   else startDictation();
+  // @endstrip
 }
 
 const selectButton = new Button({

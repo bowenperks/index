@@ -4,7 +4,7 @@
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {MIC} from "assets";
-import {render, heapLow, LOW_HEAP} from "theme";
+import {render} from "theme";
 
 export const MIC_SIZE = 80;       // the microphone's art, square
 
@@ -18,9 +18,9 @@ export function drawMic(cx, cy, scale = 1) {
     render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
     return;
   }
-  // A scaled copy is native memory XS cannot see: the last few are collected once the heap
-  // runs low, or every fourth draw (every draw would stall the motion on the watch).
-  if (++scaledDraws % 4 === 0 || heapLow(LOW_HEAP)) Debug.gc();
+  // A scaled copy is native memory XS cannot see: the last few are collected every second
+  // draw (a 2ms pause on the watch).
+  if (++scaledDraws % 2 === 0) Debug.gc();
   const small = new Poco.PebbleDrawCommandImage(MIC).clone().scale(scale);
   const half = Math.trunc(MIC_SIZE * scale / 2);
   render.drawDCI(small, cx - half, cy - half);

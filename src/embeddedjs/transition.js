@@ -10,7 +10,7 @@
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {Animation, NORMAL_MAX, linear, easeInOut, segmented, fraction} from "motion";
-import {render, heapLow, LOW_HEAP} from "theme";
+import {render} from "theme";
 
 // Timings and effects as the firmware's peek sets them (peek_layer.c, unfold.h,
 // scale_segmented.h), plus a short hold so the large icon reads before it goes.
@@ -65,6 +65,14 @@ export default class IconTransition {
     const w = this.image.width, h = this.image.height;
     this.size = [w, h];
     this.large = {x: cx - (w >> 1), y: cy - (h >> 1), w, h};
+    // Per axis (0 x, 1 y): the large icon as [first pixel, size], the unfold's expanded
+    // box, and the point it unfolds from. Worked out once: the span is wanted two or three
+    // times a frame, and arrays made there were garbage every frame.
+    this.largeAxis = [[this.large.x, w], [this.large.y, h]];
+    this.unfoldMiddle = [[this.large.x - UNFOLD_EXPAND, w + 2 * UNFOLD_EXPAND],
+                         [this.large.y - UNFOLD_EXPAND, h + 2 * UNFOLD_EXPAND]];
+    this.unfoldFrom = [[this.large.x + (w >> 1), 0], [this.large.y + (h >> 1), 0]];
+    this.out = [0, 0];
     this.retarget(to ?? this.large);
     this.elapsed = this.draws = 0;
     this.flyingStarted = false;
@@ -91,7 +99,13 @@ export default class IconTransition {
     // The bounce overshoots past the destination along the line of travel.
     const dx = to.x - this.large.x, dy = to.y - this.large.y;
     const magnitude = Math.floor(Math.sqrt(dx * dx + dy * dy));
-    this.bounce = magnitude ? [Math.trunc(FLY_BOUNCE * dx / magnitude), Math.trunc(FLY_BOUNCE * dy / magnitude)] : [0, 0];
+    const bounceX = magnitude ? Math.trunc(FLY_BOUNCE * dx / magnitude) : 0;
+    const bounceY = magnitude ? Math.trunc(FLY_BOUNCE * dy / magnitude) : 0;
+    // Per axis: the destination as [first pixel, size] and the flight's expanded, pushed
+    // past box it overshoots to.
+    this.toAxis = [[to.x, to.w], [to.y, to.h]];
+    this.flyMiddle = [[to.x - FLY_EXPAND + bounceX, to.w + 2 * FLY_EXPAND],
+                      [to.y - FLY_EXPAND + bounceY, to.h + 2 * FLY_EXPAND]];
   }
 
   release() {
@@ -108,34 +122,37 @@ export default class IconTransition {
     if (this.active) this.release();
   }
 
-  // The icon's frame on one axis (0 x, 1 y) at this moment: [first pixel, past the last].
+  // The icon's frame on one axis (0 x, 1 y) at this moment: [first pixel, past the last],
+  // in one array reused by every call (callers take the values at once).
   span(axis) {
-    const size = this.size[axis];
-    const large = axis ? [this.large.y, this.large.h] : [this.large.x, this.large.w];
+    const size = this.size[axis], large = this.largeAxis[axis], out = this.out;
     if (this.elapsed < UNFOLD_MS + HOLD_MS) {
       // The unfold: out of a point at the icon's centre, past its size, back onto it.
       const progress = this.elapsed >= UNFOLD_MS ? NORMAL_MAX : Math.trunc(this.elapsed * NORMAL_MAX / UNFOLD_MS);
-      const centre = large[0] + (large[1] >> 1);
-      const middle = [large[0] - UNFOLD_EXPAND, large[1] + 2 * UNFOLD_EXPAND];
+      const from = this.unfoldFrom[axis], middle = this.unfoldMiddle[axis];
       const first = segmented(progress, 0, 2, UNFOLD_EFFECT_DURATION);
       const second = segmented(progress, 1, 2, UNFOLD_EFFECT_DURATION);
-      return [twoStage(0, size, [centre, 0], middle, large, first, second),
-              twoStage(size, size, [centre, 0], middle, large, first, second)];
+      out[0] = twoStage(0, size, from, middle, large, first, second);
+      out[1] = twoStage(size, size, from, middle, large, first, second);
+      return out;
     }
-    // The flight: the edge facing the header square leaves first and the far edge last,
-    // each on its own delay, so the icon stretches towards the square, then overshoots
-    // with the bounce and squashes back onto it.
+    // The flight: the edge facing the destination leaves first and the far edge last,
+    // each on its own delay, so the icon stretches towards it, then overshoots with the
+    // bounce and squashes back onto it.
     const fly = this.elapsed - UNFOLD_MS - HOLD_MS;
     const progress = fly >= FLY_MS ? NORMAL_MAX : Math.trunc(fly * NORMAL_MAX / FLY_MS);
-    const to = axis ? [this.to.y, this.to.h] : [this.to.x, this.to.w];
-    const middle = [to[0] - FLY_EXPAND + this.bounce[axis], to[1] + 2 * FLY_EXPAND];
+    const to = this.toAxis[axis], middle = this.flyMiddle[axis];
     const first = segmented(progress, 0, 2, FLY_EFFECT_DURATION);
     const second = segmented(progress, 1, 2, FLY_EFFECT_DURATION);
-    const edge = (value, delay) => twoStage(value, size, large, middle, to,
-      segmented(first, delay, DELAY_STEPS, FLY_POINT_DURATION),
-      segmented(second, delay, DELAY_STEPS, FLY_POINT_DURATION));
     const leadingLow = to[0] + (to[1] >> 1) <= large[0] + (large[1] >> 1);
-    return [edge(0, leadingLow ? 0 : DELAY_STEPS - 1), edge(size, leadingLow ? DELAY_STEPS - 1 : 0)];
+    const lead = leadingLow ? 0 : DELAY_STEPS - 1, trail = leadingLow ? DELAY_STEPS - 1 : 0;
+    out[0] = twoStage(0, size, large, middle, to,
+                      segmented(first, lead, DELAY_STEPS, FLY_POINT_DURATION),
+                      segmented(second, lead, DELAY_STEPS, FLY_POINT_DURATION));
+    out[1] = twoStage(size, size, large, middle, to,
+                      segmented(first, trail, DELAY_STEPS, FLY_POINT_DURATION),
+                      segmented(second, trail, DELAY_STEPS, FLY_POINT_DURATION));
+    return out;
   }
 
   draw() {
@@ -143,10 +160,9 @@ export default class IconTransition {
     const [left, right] = this.span(0);
     const [top, bottom] = this.span(1);
     // Clones own native PDC memory, which XS's own heap limit does not account for.
-    // The previous draws' temporary clones (a few hundred bytes each) are collected once
-    // the heap runs low, or every sixth frame regardless: collecting every frame stalls
-    // the motion on the watch.
-    if (++this.draws % 6 === 0 || heapLow(LOW_HEAP)) Debug.gc();
+    // The previous draws' temporary clones (a few hundred bytes each) are collected every
+    // third frame (a 2ms pause on the watch).
+    if (++this.draws % 3 === 0) Debug.gc();
     const list = this.image.clone();
     list.scale(Math.max(0, right - left) / this.size[0], Math.max(0, bottom - top) / this.size[1]);
     // Strokes move between two widths, in eighths with rounding: the dot's thick stroke

@@ -48,6 +48,12 @@ if [ -n "${INDEX_AUTOPLAY:-}" ]; then
   grep -q "^const AUTOPLAY = \[\];" "$BUILD_DIR/src/embeddedjs/main.js" && { echo "AUTOPLAY not applied" >&2; exit 1; }
   OUTPUT=index-alloy-autoplay.pbw
 fi
+# Code this build does not use is removed before bundling (see tools/strip.py): the
+# measuring code unless instrumented, the dictation code from the playtest.
+STRIP=""
+[ "${INDEX_INSTRUMENT:-0}" = 1 ] || STRIP="$STRIP profile"
+[ "${INDEX_PLAYTEST:-0}" = 1 ] && STRIP="$STRIP dictation"
+python3 "$ROOT/tools/strip.py" "$BUILD_DIR/src/embeddedjs" $STRIP
 # One module on the watch (see tools/bundle.py); the source stays modular.
 python3 "$ROOT/tools/bundle.py" "$BUILD_DIR/src/embeddedjs" "$BUILD_DIR/main.bundle.js"
 mv "$BUILD_DIR/main.bundle.js" "$BUILD_DIR/src/embeddedjs/main.js"

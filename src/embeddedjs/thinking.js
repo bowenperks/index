@@ -5,7 +5,7 @@ import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {THINKING_FIRST} from "assets";
 import {Animation, NORMAL_MAX, linear, now} from "motion";
-import {render, WHITE, BLACK, heapLow, LOW_HEAP} from "theme";
+import {render, WHITE, BLACK} from "theme";
 
 export const RING_RADIUS_Q8 = 20 * 256;   // the home ring's resting radius (1/256 px)
 const SQUARE_RADIUS_Q8 = 23 * 256, POP_RADIUS_Q8 = 28 * 256;
@@ -27,6 +27,7 @@ function interpolate(start, end, elapsed) {
 // before, took over 100ms a frame on the watch.
 const STROKE = 3, GCORNERS_ALL = 15;
 
+// @strip profile
 // For instrumented builds: how many collections the cube ran, the longest, and the longest
 // frame load, since the last reading.
 let collections = 0, collectionMax = 0, loadMax = 0;
@@ -35,6 +36,7 @@ export function cubeStats() {
   collections = collectionMax = loadMax = 0;
   return stats;
 }
+// @endstrip
 
 export function drawRing(cx, cy, radiusQ8, cornerQ8) {
   if (radiusQ8 > POP_RADIUS_Q8) return;
@@ -153,22 +155,30 @@ export default class Thinking {
       index = RIGHT_FIRST_FRAME + move * (TURN_LAST_FRAME + 1) + step;
     }
     // Sequence storage is native memory, so XS cannot see its allocation pressure. The
-    // previous frames (~1 KB each) are collected once the heap runs low, or every fourth
-    // frame regardless (the voice build, with its dictation session, has only ~8 KB free):
-    // collecting on every one stalls the animation on the watch.
+    // previous frames (~1 KB each) are collected every second frame change, a 2ms pause on
+    // the watch, which keeps at most 2 KB of them outstanding (the voice build, with its
+    // dictation session, has only ~8 KB free; the app ran out and crashed with less care).
     if (index !== this.frameIndex) {
       this.frame = undefined;
-      if (++this.loads % 4 === 0 || heapLow(LOW_HEAP)) {
+      if (++this.loads % 2 === 0) {
+        // @strip profile
         const started = now();
+        // @endstrip
         Debug.gc();
+        // @strip profile
         const took = now() - started;
         collections++;
         if (took > collectionMax) collectionMax = took;
+        // @endstrip
       }
+      // @strip profile
       const started = now();
+      // @endstrip
       this.frame = new Poco.PebbleDrawCommandSequence(THINKING_FIRST + index);
+      // @strip profile
       const took = now() - started;
       if (took > loadMax) loadMax = took;
+      // @endstrip
       this.frame.time = 0;
       this.frameIndex = index;
     }

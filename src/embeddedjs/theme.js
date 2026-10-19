@@ -16,20 +16,6 @@ try {
 }
 export const CONTENT_SIZE = contentSize;
 
-// Whether the app's free heap is below `bytes`. Native memory (vector art, animation
-// frames) is invisible to Alloy's collector, which only runs for its own heap, so the
-// animations that load art each frame collect when this says so (and on a slow cadence
-// should the firmware not answer). LOW_HEAP leaves room for a frame's art and the
-// firmware's own text buffers.
-export const LOW_HEAP = 6144;
-export function heapLow(bytes) {
-  try {
-    return Natives.heapFree() < bytes;
-  } catch (error) {
-    return false;
-  }
-}
-
 export const WHITE = render.makeColor(255, 255, 255);
 export const BLACK = render.makeColor(0, 0, 0);
 export const DARK_GRAY = render.makeColor(85, 85, 85);
@@ -50,7 +36,9 @@ const arts = new Map();
 export function art(id) {
   let image = arts.get(id);
   if (!image) {
-    if (arts.size >= 4) arts.delete(arts.keys().next().value);
+    // Two at most: the map and a disc are ~1 KB of native memory each, and the cards
+    // that need more are off screen more often than on.
+    if (arts.size >= 2) arts.delete(arts.keys().next().value);
     arts.set(id, image = new Poco.PebbleDrawCommandImage(id));
   }
   return image;
