@@ -4,8 +4,8 @@
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {THINKING_FIRST} from "assets";
-import {Animation, NORMAL_MAX, linear} from "motion";
-import {render, WHITE, BLACK} from "theme";
+import {Animation, NORMAL_MAX, linear, now} from "motion";
+import {render, WHITE, BLACK, heapLow, LOW_HEAP} from "theme";
 
 export const RING_RADIUS_Q8 = 20 * 256;   // the home ring's resting radius (1/256 px)
 const SQUARE_RADIUS_Q8 = 23 * 256, POP_RADIUS_Q8 = 28 * 256;
@@ -26,6 +26,15 @@ function interpolate(start, end, elapsed) {
 // fills with the inside cleared. Working the outline out pixel by pixel in JavaScript, as
 // before, took over 100ms a frame on the watch.
 const STROKE = 3, GCORNERS_ALL = 15;
+
+// For instrumented builds: how many collections the cube ran, the longest, and the longest
+// frame load, since the last reading.
+let collections = 0, collectionMax = 0, loadMax = 0;
+export function cubeStats() {
+  const stats = [collections, collectionMax, loadMax];
+  collections = collectionMax = loadMax = 0;
+  return stats;
+}
 
 export function drawRing(cx, cy, radiusQ8, cornerQ8) {
   if (radiusQ8 > POP_RADIUS_Q8) return;
@@ -141,12 +150,22 @@ export default class Thinking {
       index = RIGHT_FIRST_FRAME + move * (TURN_LAST_FRAME + 1) + step;
     }
     // Sequence storage is native memory, so XS cannot see its allocation pressure. The
-    // previous frames are collected every fifth frame change: collecting on every one
-    // stalls the animation on the watch, and five ~1 KB frames are well within the heap.
+    // previous frames (~1 KB each) are collected once the heap runs low, or every fourth
+    // frame regardless (the voice build, with its dictation session, has only ~8 KB free):
+    // collecting on every one stalls the animation on the watch.
     if (index !== this.frameIndex) {
       this.frame = undefined;
-      if (++this.loads % 5 === 0) Debug.gc();
+      if (++this.loads % 4 === 0 || heapLow(LOW_HEAP)) {
+        const started = now();
+        Debug.gc();
+        const took = now() - started;
+        collections++;
+        if (took > collectionMax) collectionMax = took;
+      }
+      const started = now();
       this.frame = new Poco.PebbleDrawCommandSequence(THINKING_FIRST + index);
+      const took = now() - started;
+      if (took > loadMax) loadMax = took;
       this.frame.time = 0;
       this.frameIndex = index;
     }

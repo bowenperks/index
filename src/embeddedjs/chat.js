@@ -22,7 +22,7 @@ import {CARDS} from "cards";
 import {drawMic, Waveform} from "mic";
 import {HISTORY} from "prompts";
 
-const CAPACITY = 10;   // history entries (results and day labels) kept, to bound memory
+const CAPACITY = 8;   // history entries (results and day labels) kept, to bound memory
 // Index's replies sit at the left margin with a tail; the user's bubbles are solid pills
 // against the right margin; cards take a narrower margin on both sides and have no tail.
 const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6;

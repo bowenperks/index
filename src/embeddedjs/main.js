@@ -10,6 +10,7 @@ import Chat from "chat";
 import {DEMO, resolve} from "prompts";
 import {onFrame, isAnimating, now} from "motion";
 import {setTimeout, startTimers} from "timers";
+import {cubeStats} from "thinking";
 
 // The build helper enables this only in the Select-driven playtest package, which asks
 // the demo reel's requests in turn with a simulated recording instead of dictation.
@@ -60,6 +61,8 @@ function record(key, gap, draw) {
             `gap max ${s.gap}, late ${s.late}\n`);
       delete profile[name];
     }
+    const [collections, collectionMax, loadMax] = cubeStats();
+    trace(`cube: ${collections} collections, longest ${collectionMax}ms; longest frame load ${loadMax}ms\n`);
     return;
   }
   const s = profile[key] ??= {frames: 0, sum: 0, max: 0, gap: 0, late: 0};

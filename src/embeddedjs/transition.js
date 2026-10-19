@@ -10,7 +10,7 @@
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {Animation, NORMAL_MAX, linear, easeInOut, segmented, fraction} from "motion";
-import {render} from "theme";
+import {render, heapLow, LOW_HEAP} from "theme";
 
 // Timings and effects as the firmware's peek sets them (peek_layer.c, unfold.h,
 // scale_segmented.h), plus a short hold so the large icon reads before it goes.
@@ -140,9 +140,10 @@ export default class IconTransition {
     const [left, right] = this.span(0);
     const [top, bottom] = this.span(1);
     // Clones own native PDC memory, which XS's own heap limit does not account for.
-    // Collect the previous draws' temporary clones every sixth frame: collecting every
-    // frame stalls the motion on the watch, and six clones are a few hundred bytes each.
-    if (++this.draws % 6 === 0) Debug.gc();
+    // The previous draws' temporary clones (a few hundred bytes each) are collected once
+    // the heap runs low, or every sixth frame regardless: collecting every frame stalls
+    // the motion on the watch.
+    if (++this.draws % 6 === 0 || heapLow(LOW_HEAP)) Debug.gc();
     const list = this.image.clone();
     list.scale(Math.max(0, right - left) / this.size[0], Math.max(0, bottom - top) / this.size[1]);
     // Strokes move between two widths, in eighths with rounding: the dot's thick stroke
