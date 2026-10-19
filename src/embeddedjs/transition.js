@@ -99,7 +99,6 @@ export default class IconTransition {
     this.animation = undefined;
     this.image = undefined;
     this.active = false;
-    Debug.gc();
   }
 
   cancel() {

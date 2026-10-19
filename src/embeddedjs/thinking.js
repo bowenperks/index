@@ -131,7 +131,6 @@ export default class Thinking {
     this.active = false;
     this.frame = undefined;
     releaseRing();
-    Debug.gc();
   }
 
   cancel() {

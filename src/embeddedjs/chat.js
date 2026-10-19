@@ -191,7 +191,6 @@ export default class Chat {
   // Places every entry down the page below the time bar, then the voice input's slot. A
   // short history sits at the bottom of the screen, as a messaging app's does.
   layout() {
-    Debug.gc();
     let top = this.headerHeight + GAP;
     for (const item of this.items) {
       item.y = top;
@@ -583,7 +582,7 @@ export default class Chat {
     if (this.transition.isFlying) this.transition.draw();
     if (this.notice) {
       const h = this.textHeight(this.notice) + 18;
-      this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255);
+      this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true);
     }
   }
 
@@ -611,10 +610,11 @@ export default class Chat {
   }
 
   // Index's reply bubble: the thin grey outline of the home greeting, with its tail.
-  drawBubble(x, y, w, h, lines, shade) {
+  drawBubble(x, y, w, h, lines, shade, fill) {
     if (!shade) return;
     const border = ink(Math.min(shade, 170));
-    render.drawRoundRect(x, y, w, h, WHITE, 7, GCORNERS_ALL);
+    // Filled only over content (the notice): the page's strips are already white.
+    if (fill) render.drawRoundRect(x, y, w, h, WHITE, 7, GCORNERS_ALL);
     resetPen();
     render.frameRoundRect(x, y, w, h, border, 7);
     if (this.tailBorder !== border) {
@@ -653,7 +653,6 @@ export default class Chat {
     // Indexed, not destructured: destructuring makes an iterator, every card, every frame.
     const widget = WIDGETS[item.widget], icon = widget[0], body = widget[2], source = widget[3];
     const h = item.card, edge = y + h - 1, quiet = ink(Math.min(shade, 170));
-    render.drawRoundRect(x, y, w, h, WHITE, CARD_RADIUS, GCORNERS_ALL);
     resetPen();
     render.frameRoundRect(x, y, w, h, quiet, CARD_RADIUS);
     render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
