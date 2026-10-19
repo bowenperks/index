@@ -38,7 +38,13 @@ function pump() {
   const now = Time.ticks >>> 0;
   // A snapshot defers newly scheduled jobs until the next tick. A callback may also
   // cancel another ready job, so check that it is still registered before running it.
-  const ready = jobs.filter(job => ((now - job.due) | 0) >= 0);
+  // The snapshot is only made when a job is due: this runs 30 times a second, and
+  // garbage made here forces collections that stall scrolling on the watch.
+  let ready;
+  for (let index = 0; index < jobs.length; index++) {
+    if (((now - jobs[index].due) | 0) >= 0) (ready ??= []).push(jobs[index]);
+  }
+  if (!ready) return;
   for (const job of ready) {
     if (jobs.indexOf(job) < 0) continue;
     if (job.interval) {

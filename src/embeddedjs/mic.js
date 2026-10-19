@@ -8,7 +8,7 @@ import {render} from "theme";
 
 export const MIC_SIZE = 80;       // the microphone's art, square
 
-let glyph;
+let glyph, scaledDraws = 0;
 
 // The microphone centred on (cx, cy); `scale` shrinks it (as it turns into the thinking
 // cube's dot).
@@ -18,8 +18,9 @@ export function drawMic(cx, cy, scale = 1) {
     render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
     return;
   }
-  // A scaled copy is native memory XS cannot see: collect the last one before making it.
-  Debug.gc();
+  // A scaled copy is native memory XS cannot see: the last few are collected every third
+  // draw (every draw would stall the motion on the watch).
+  if (++scaledDraws % 3 === 0) Debug.gc();
   const small = new Poco.PebbleDrawCommandImage(MIC).clone().scale(scale);
   const half = Math.trunc(MIC_SIZE * scale / 2);
   render.drawDCI(small, cx - half, cy - half);

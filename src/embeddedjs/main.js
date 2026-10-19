@@ -6,10 +6,9 @@
 // Everything is drawn with Poco into the watch's frame buffer.
 import Button from "pebble/button";
 import Dictation from "pebble/dictation";
-import {render} from "theme";
 import Chat from "chat";
 import {DEMO, resolve} from "prompts";
-import {onFrame, isAnimating} from "motion";
+import {onFrame, isAnimating, now} from "motion";
 import {setTimeout, startTimers} from "timers";
 
 // The build helper enables this only in the Select-driven playtest package, which asks
@@ -22,15 +21,16 @@ let drawPending = false;
 let drawTimer;
 let dictating = false;
 
-// Animation updates paint on their existing frame tick. Scheduling a zero-delay draw
-// from every tick can accumulate expired native timers in Alloy's event queue.
+// Animation updates paint on their existing frame tick; other changes paint on the next
+// tick of the app's one timer (timers.js), never on a native timer of their own.
+let lastDraw = 0;
 function invalidate() {
   drawPending = true;
   if (!isAnimating() && drawTimer === undefined) {
     drawTimer = setTimeout(() => {
       drawTimer = undefined;
       draw();
-    }, 33);
+    }, 0);
   }
 }
 
@@ -39,9 +39,8 @@ function draw() {
   drawPending = false;
   // While the system's dictation window is up, Index must not draw over it.
   if (dictating || !chat) return;
-  render.begin();
-  chat.draw();
-  render.end();
+  lastDraw = now();
+  chat.render();
 }
 
 onFrame(draw);
@@ -139,6 +138,8 @@ const scrollButtons = new Button({
 const touch = new device.sensor.Touch({
   onSample() {
     chat.touch(this.sample());
+    // A finger is followed at once, not on the next timer tick (at most every 20ms).
+    if (drawPending && now() - lastDraw >= 20) draw();
   },
 });
 

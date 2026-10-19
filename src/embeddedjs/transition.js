@@ -66,7 +66,7 @@ export default class IconTransition {
     this.size = [w, h];
     this.large = {x: cx - (w >> 1), y: cy - (h >> 1), w, h};
     this.retarget(to ?? this.large);
-    this.elapsed = 0;
+    this.elapsed = this.draws = 0;
     this.flyingStarted = false;
     this.active = true;
     const total = unfoldOnly ? UNFOLD_MS : TOTAL_MS;
@@ -140,9 +140,10 @@ export default class IconTransition {
     if (!this.active) return;
     const [left, right] = this.span(0);
     const [top, bottom] = this.span(1);
-    // Clones own native PDC memory. Collect the previous draw's temporary clone
-    // before allocating another; XS's own heap limit does not account for it.
-    Debug.gc();
+    // Clones own native PDC memory, which XS's own heap limit does not account for.
+    // Collect the previous draws' temporary clones every third frame: collecting every
+    // frame stalls the motion on the watch, and three clones are a few hundred bytes each.
+    if (++this.draws % 3 === 0) Debug.gc();
     const list = this.image.clone();
     list.scale(Math.max(0, right - left) / this.size[0], Math.max(0, bottom - top) / this.size[1]);
     // Strokes move between two widths, in eighths with rounding: the dot's thick stroke

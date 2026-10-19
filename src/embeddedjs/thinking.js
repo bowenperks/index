@@ -51,14 +51,16 @@ export function drawRing(cx, cy, radiusQ8, cornerQ8) {
   if (radiusQ8 > POP_RADIUS_Q8) return;
   quadrant ??= new Uint8Array(QUADRANT * QUADRANT);
   shades ??= [0, render.makeColor(170, 170, 170), render.makeColor(85, 85, 85), render.makeColor(0, 0, 0)];
-  for (let dy = 0; dy < QUADRANT; dy++) {
-    for (let dx = 0; dx < QUADRANT; dx++) quadrant[dy * QUADRANT + dx] = ringShade(dx, dy, radiusQ8, cornerQ8);
+  // Only as far out as the shape reaches: a small shape is far cheaper to work out.
+  const half = Math.min(HALF, (radiusQ8 >> 8) + 2);
+  for (let dy = 0; dy <= half; dy++) {
+    for (let dx = 0; dx <= half; dx++) quadrant[dy * QUADRANT + dx] = ringShade(dx, dy, radiusQ8, cornerQ8);
   }
-  for (let row = -HALF; row <= HALF; row++) {
+  for (let row = -half; row <= half; row++) {
     const line = Math.abs(row) * QUADRANT;
-    let start = -HALF, shade = quadrant[line + HALF];
-    for (let column = -HALF + 1; column <= HALF + 1; column++) {
-      const next = column > HALF ? -1 : quadrant[line + Math.abs(column)];
+    let start = -half, shade = quadrant[line + half];
+    for (let column = -half + 1; column <= half + 1; column++) {
+      const next = column > half ? -1 : quadrant[line + Math.abs(column)];
       if (next === shade) continue;
       if (shade > 0) render.fillRectangle(shades[shade], cx + start, cy + row, column - start, 1);
       start = column;
@@ -86,6 +88,7 @@ export default class Thinking {
     this.closeRadius = RING_RADIUS_Q8;
     this.stopRequested = false;
     this.frameIndex = -1;
+    this.loads = 0;
     this.startStage(OPENING);
     return true;
   }
@@ -168,12 +171,12 @@ export default class Thinking {
       const step = Math.min(TURN_LAST_FRAME, Math.trunc((elapsed % MOVE_MS) * TURN_LAST_FRAME / TURN_MS));
       index = RIGHT_FIRST_FRAME + move * (TURN_LAST_FRAME + 1) + step;
     }
-    // Sequence storage is native memory, so XS cannot see its allocation pressure.
-    // Release the previous frame before allocating its replacement; waiting several
-    // frames can exhaust/fragment the watch heap even when JS still has room.
+    // Sequence storage is native memory, so XS cannot see its allocation pressure. The
+    // previous frames are collected every third frame change: collecting on every one
+    // stalls the animation on the watch, and three ~1 KB frames are well within the heap.
     if (index !== this.frameIndex) {
       this.frame = undefined;
-      Debug.gc();
+      if (++this.loads % 3 === 0) Debug.gc();
       this.frame = new Poco.PebbleDrawCommandSequence(THINKING_FIRST + index);
       this.frame.time = 0;
       this.frameIndex = index;

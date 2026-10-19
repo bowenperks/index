@@ -85,7 +85,12 @@ export default class Chat {
   // the microphone.
   constructor(ready, invalidate, talk) {
     this.ready = ready;
-    this.invalidate = invalidate;
+    // Most changes repaint the whole screen; invalidateArea repaints just a band of it.
+    this.requestDraw = invalidate;
+    this.invalidate = () => {
+      this.dirty = true;
+      invalidate();
+    };
     this.talk = talk;
     this.items = [];
     this.phase = "idle";
@@ -110,9 +115,9 @@ export default class Chat {
       this.textDescender = 4;
     }
     this.tail = new Poco.PebbleDrawCommandImage(assets.BUBBLE_TAIL).clone();
-    this.thinking = new Thinking(invalidate, () => this.thinkingDone());
+    this.thinking = new Thinking(() => this.invalidateSlot(), () => this.thinkingDone());
     this.transition = new IconTransition(invalidate, () => this.landResult(), () => this.finishTurn());
-    this.micUnfold = new IconTransition(invalidate, undefined, () => this.idle());
+    this.micUnfold = new IconTransition(() => this.invalidateSlot(), undefined, () => this.idle());
     for (const [day, widget, text] of HISTORY) {
       this.items.push(day ? this.size({type: "day", text: day}) : this.makeResult(widget, text));
     }
@@ -227,10 +232,13 @@ export default class Chat {
     this.beginTurn(question);
     this.phase = "listening";
     this.waveform = new Waveform();
-    this.push(this.size({type: "voice"}));
+    const voice = this.size({type: "voice"});
+    this.push(voice);
     this.waveTimer = setInterval(() => {
       this.waveform.step();
-      this.invalidate();
+      // Once the bubble has scrolled in, only it repaints.
+      if (this.scrollAnimation?.scheduled) this.invalidate();
+      else this.invalidateArea(voice.y, voice.y + voice.h);
     }, WAVE_STEP);
     this.timer = setTimeout(() => this.transcribe(), ms);
     return true;
@@ -270,7 +278,7 @@ export default class Chat {
     new Animation(SLIDE_MS, easeInOut, progress => {
       this.micX = from + Math.trunc((CUBE_X - from) * progress / NORMAL_MAX);
       this.micScale = 1 - (1 - MIC_DOT_SCALE) * progress / NORMAL_MAX;
-      this.invalidate();
+      this.invalidateSlot();
     }, () => this.startThinking()).schedule();
   }
 
@@ -491,14 +499,49 @@ export default class Chat {
 
   // --- drawing --------------------------------------------------------------------------
 
-  draw() {
-    render.fillRectangle(WHITE, 0, 0, WIDTH, HEIGHT);
+  // Paints what has changed since the last frame. Most changes repaint the screen, but
+  // while only the voice input or the recording animates, just that band is repainted:
+  // on the watch, redrawing every card's text each frame is what makes motion stutter.
+  // The frame buffer keeps the rest from the frame before.
+  render() {
+    const dirty = this.dirty;
+    this.dirty = undefined;
+    if (dirty === undefined) return;
+    if (dirty === true || this.transition.active || this.notice) {
+      render.begin();
+      this.draw(0, HEIGHT);
+    } else {
+      const top = Math.max(this.headerHeight, dirty[0] - this.offset);
+      const bottom = Math.min(HEIGHT, dirty[1] - this.offset);
+      if (bottom <= top) return;
+      render.begin(0, top, WIDTH, bottom - top);
+      this.draw(top, bottom);
+    }
+    render.end();
+  }
+
+  // Marks part of the page (page coordinates) to be repainted.
+  invalidateArea(top, bottom) {
+    if (this.dirty !== true) {
+      this.dirty = this.dirty ? [Math.min(this.dirty[0], top), Math.max(this.dirty[1], bottom)] : [top, bottom];
+    }
+    this.requestDraw();
+  }
+
+  invalidateSlot() {
+    this.invalidateArea(this.slotTop, this.slotTop + SLOT_HEIGHT);
+  }
+
+  // Draws the screen rows from `top` to `bottom`: the whole screen, or a band of it.
+  draw(top, bottom) {
+    render.fillRectangle(WHITE, 0, top, WIDTH, bottom - top);
     const offset = this.offset;
     for (const item of this.items) {
       const y = item.y - offset + item.rise;
-      if (y + item.h > 0 && y < HEIGHT) this.drawItem(item, y);
+      if (y + item.h > top && y < bottom) this.drawItem(item, y);
     }
     this.drawSlot(this.slotTop - offset);
+    if (top > 0) return;
     // The time bar, and the position bar while the reader scrolls.
     render.fillRectangle(WHITE, 0, 0, WIDTH, this.headerHeight);
     drawText(this.clock, this.clockFont, ink(255), (WIDTH - textWidth(this.clock, this.clockFont)) >> 1, this.clockTop);
@@ -542,7 +585,11 @@ export default class Chat {
     render.drawRoundRect(x, y, w, h, WHITE, 7, GCORNERS_ALL);
     resetPen();
     render.frameRoundRect(x, y, w, h, border, 7);
-    this.tail.process(command => command.stroke = border);
+    if (this.tailBorder !== border) {
+      // Recoloured only when the shade changes, not for every bubble every frame.
+      this.tail.process(command => command.stroke = border);
+      this.tailBorder = border;
+    }
     render.drawDCI(this.tail, x - 5, y + h - 1 - 9);
     render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
     this.drawLines(lines, ink(shade), x + 8, y + 9 - this.textTop, w - 16);
