@@ -110,6 +110,9 @@ export default class Thinking {
     this.animation = undefined;
     this.active = false;
     this.frame = undefined;
+    // The last frames' native memory, freed before the icon's unfold starts cloning art:
+    // without this the app ran out of memory over a few turns.
+    Debug.gc();
   }
 
   cancel() {

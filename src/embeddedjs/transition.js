@@ -99,6 +99,9 @@ export default class IconTransition {
     this.animation = undefined;
     this.image = undefined;
     this.active = false;
+    // The flight's clones, freed before the next animation's art: without this the app
+    // ran out of memory over a few turns.
+    Debug.gc();
   }
 
   cancel() {
