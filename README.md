@@ -18,8 +18,13 @@ the microphone's ring slides to the bottom left and turns into the thinking cube
 messaging app's avatar, with Index's typing bubble ("•••", the dots darkening in turn)
 beside it: the cube's height, filling the row, drawn like the cube with 2px black lines. When the result comes in, it takes the words' place: the history keeps
 results, not questions. A widget's icon unfolds out of the cube's dot (after the
-notification peek), then flies into its card's header as the card rises in. The ring
-then grows back at the centre.
+notification peek), then flies into its card as the card rises in. The ring then grows
+back at the centre.
+
+Widget cards have no header: the card is all information. Its frame stops short of the
+bottom-left corner, leaving a cutout with no lines around it, where the widget's 36px icon
+sits, rising into the corner and hanging below the card. The widget's name is set in
+bold capitals underneath the card, beside the icon and centred on it.
 
 The home screen (date, big clock, icon carousel, greeting) is no longer on the page.
 The app's heap cannot hold it alongside the chat (see Memory). `home.js` and

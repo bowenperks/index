@@ -26,14 +26,22 @@ const CAPACITY = 10;   // history entries (results and day labels) kept, to boun
 // Index's replies sit at the left margin with a tail; the user's bubbles are solid pills
 // against the right margin; cards take a narrower margin on both sides and have no tail.
 const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6;
-// Widget cards: a blue header band (the icon in a 41px square at its left, the label
-// centred) closed off by a divider above the body.
-const CARD_RADIUS = 7, CARD_SQUARE = 41, CARD_HEADER = CARD_SQUARE + 1, WIDGET_BODY = 154;
-const WIDGET_ICON = 25, WIDGET_DOT_RADIUS_Q8 = 4 * 256;   // the notification peek's 9px dot
+// Widget cards have no header: the card is all information. Its bottom-left corner is cut
+// away (the frame stops 40px in from the left and 11px up from the bottom) and the widget's
+// 36px icon sits in the cutout, rising 7px above the bottom edge and hanging below it; the
+// widget's name is set underneath the card, to the icon's right and centred on it, so the
+// caption row takes 29px below the card.
+const CARD_RADIUS = 7, WIDGET_BODY = 154;
+const CUT_WIDTH = 40, CUT_HEIGHT = 11, ICON_ABOVE = 7, CAPTION_BELOW = 29;
+// Content near the bottom clears the cutout: text cards' ink (descenders included) ends
+// at least 14px above the bottom edge; the rich bodies' bottom padding is measured from
+// their last row's caps, so they get 7px more for its descenders and the gap.
+const CUT_CLEARANCE = CUT_HEIGHT + 3, BODY_CLEARANCE = 7;
+const WIDGET_ICON = 36, WIDGET_DOT_RADIUS_Q8 = 4 * 256;   // the notification peek's 9px dot
 // A card's text is set like a notification's body, at the card's 10px inset, with a text
-// bubble's 9px above and below; a source line, if any, follows in small type.
+// bubble's 9px above; a source line, if any, follows in small type.
 const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
-const GCORNERS_TOP = 3, GCORNERS_ALL = 15;
+const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
 // The voice input's slot at the end of the page: the ring's centre sits 36px down, so the
 // thinking cube's art (31px above its centre, up to 42 below as it turns) fits inside it.
@@ -56,16 +64,17 @@ const PING_STEP = 80, PING_STEPS = 15, PING_PERIOD = 26;
 const WAVE_STEP = 70, THINK_AFTER = 300, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40, REGROW_MS = 260;
 
-// Each widget: its header label, small and large icons, and its body if not text.
+// Each widget: its name (set in capitals under the card), its icon for the cutout and
+// the large one the peek unfolds, and its body if not text.
 const WIDGETS = {
-  weather: ["Weather", 0, assets.WEATHER_LARGE, "weather"],
-  beeper: ["Beeper", assets.BEEPER_ICON, assets.BEEPER_LARGE],
-  reminder: ["Reminder", assets.REMINDER_ICON, assets.REMINDER_LARGE],
-  home: ["Google Home", assets.HOME_ICON, assets.HOME_LARGE],
-  today: ["Today", assets.TODAY_ICON, assets.TODAY_LARGE, "today"],
-  web: ["Web Answer", assets.WEB_ICON, assets.WEB_LARGE, "", "Source: GDPR, Article 17"],
-  map: ["Location", assets.PIN_ICON, assets.PIN_LARGE, "map"],
-  translate: ["Translate", assets.TRANSLATE_ICON, assets.TRANSLATE_LARGE, "translate"],
+  weather: ["WEATHER", assets.WEATHER_MEDIUM, assets.WEATHER_LARGE, "weather"],
+  beeper: ["BEEPER", assets.BEEPER_MEDIUM, assets.BEEPER_LARGE],
+  reminder: ["REMINDER", assets.REMINDER_MEDIUM, assets.REMINDER_LARGE],
+  home: ["GOOGLE HOME", assets.HOME_MEDIUM, assets.HOME_LARGE],
+  today: ["TODAY", assets.TODAY_MEDIUM, assets.TODAY_LARGE, "today"],
+  web: ["WEB ANSWER", assets.WEB_MEDIUM, assets.WEB_LARGE, "", "Source: GDPR, Article 17"],
+  map: ["LOCATION", assets.PIN_MEDIUM, assets.PIN_LARGE, "map"],
+  translate: ["TRANSLATE", assets.TRANSLATE_MEDIUM, assets.TRANSLATE_LARGE, "translate"],
 };
 
 // A fading bubble steps through the 64-colour palette from Index blue to the page.
@@ -101,10 +110,10 @@ export default class Chat {
       this.textTop = 10;
       this.textDescender = 4;
     }
-    // Widget headers use Bobby's widget-title face for the text size, with cap bearings from
-    // the PBFs; a label too wide beside the icon square drops a size.
-    this.headers = [[font("Gothic-Bold", 28), 10, 18], [font("Gothic-Bold", 24), 10, 14],
-                    [font("Gothic-Bold", 18), 7, 11]].slice(CONTENT_SIZE < MEDIUM ? 2 : CONTENT_SIZE === MEDIUM ? 1 : 0);
+    // Widget names are set in Gothic Bold for the text size (24 at the default), with cap
+    // bearings from the PBFs; a name too wide for the space beside the icon drops a size.
+    this.captions = [[font("Gothic-Bold", 28), 10, 18], [font("Gothic-Bold", 24), 10, 14],
+                     [font("Gothic-Bold", 18), 7, 11]].slice(CONTENT_SIZE < MEDIUM ? 2 : extraLarge ? 0 : 1);
     this.tail = new Poco.PebbleDrawCommandImage(assets.BUBBLE_TAIL).clone();
     this.thinking = new Thinking(invalidate, () => this.thinkingDone());
     this.transition = new IconTransition(invalidate, () => this.landResult(), () => this.finishTurn());
@@ -152,14 +161,17 @@ export default class Chat {
       x = CARD_MARGIN;
       w = WIDTH - 2 * CARD_MARGIN;
       if (body === "weather") {
-        h = WIDGET_BODY;
+        h = WIDGET_BODY + BODY_CLEARANCE;
       } else if (body) {
-        h = CARDS[body].height;
+        h = CARDS[body].height + BODY_CLEARANCE;
       } else {
         item.lines = measure(text, this.font, w - 2 * CARD_TEXT_INSET).lines;
-        h = this.textHeight(item.lines) + 2 * CARD_TEXT_PADDING + (source ? SOURCE_GAP + SOURCE_CAP : 0);
+        h = CARD_TEXT_PADDING + this.textHeight(item.lines) + (source ? SOURCE_GAP + SOURCE_CAP : 0) +
+            CUT_CLEARANCE;
       }
-      h += CARD_HEADER;
+      // The card itself; the entry also holds the caption row hanging below it.
+      item.card = h;
+      h += CAPTION_BELOW;
     } else {
       // A plain reply: Index's bubble with its tail.
       item.lines = measure(text, this.font, w - 16).lines;
@@ -315,12 +327,13 @@ export default class Chat {
     item.shade = 0;
     item.rise = RISE;
     this.layout();
-    // The page rests at its end, but never with a card's header tucked under the time bar.
+    // The page rests at its end, but never with a card's top tucked under the time bar.
     const offset = Math.min(this.maxOffset, item.y - this.headerHeight - 4);
     this.setOffset(offset, true);
     if (this.transition.active) {
-      const inset = (CARD_SQUARE - WIDGET_ICON) >> 1;
-      this.transition.retarget({x: item.x + inset, y: item.y - offset + inset, w: WIDGET_ICON, h: WIDGET_ICON});
+      // The icon flies into the card's cutout.
+      this.transition.retarget({x: item.x, y: item.y - offset + this.iconTop(item),
+                                w: WIDGET_ICON, h: WIDGET_ICON});
       this.landing = item;
     }
     // The result rises into place as it darkens in.
@@ -344,8 +357,13 @@ export default class Chat {
     }, () => this.idle()).schedule();
   }
 
+  // Between turns, the turn's art is let go and collected at once: its native memory (the
+  // flown icon, the typing bubble's copy) is invisible to XS, which would otherwise hold
+  // it until a collection happened for other reasons.
   idle() {
     this.phase = "idle";
+    this.typingArt = undefined;
+    Debug.gc();
     this.invalidate();
     if (this.visible) this.startPing();
   }
@@ -563,42 +581,41 @@ export default class Chat {
     }
   }
 
-  // A card is Index's reply frame without the tail, its header band and the divider closing
-  // it off; the body is the reply's text or the widget's own content.
+  // Where a card's icon sits, from the entry's top: rising into the cutout above the card's
+  // bottom edge and hanging below it.
+  iconTop(item) {
+    return item.card - 1 - ICON_ABOVE;
+  }
+
+  // A card is Index's reply frame without the tail, all information: the reply's text or
+  // the widget's own content. Its bottom-left corner is cut away, the frame simply stopping
+  // short, and the widget's icon sits there; its name is set underneath, beside the icon
+  // and centred on it.
   drawCard(item, y) {
-    const {x, w, h, shade} = item;
+    const {x, w, shade} = item;
     if (!shade) return;
     const [label, icon, , body, source] = WIDGETS[item.widget];
-    const quiet = ink(Math.min(shade, 170));
+    const h = item.card, edge = y + h - 1, quiet = ink(Math.min(shade, 170));
     render.drawRoundRect(x, y, w, h, WHITE, CARD_RADIUS, GCORNERS_ALL);
     resetPen();
     render.frameRoundRect(x, y, w, h, quiet, CARD_RADIUS);
     render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
-    // While the icon is in flight, the header square waits for it.
-    if (shade === 255) {
-      render.drawRoundRect(x, y, w, CARD_SQUARE, VIVID_CERULEAN, CARD_RADIUS, GCORNERS_TOP);
-      if (item !== this.landing) {
-        const inset = (CARD_SQUARE - WIDGET_ICON) >> 1;
-        if (icon) render.drawDCI(new Poco.PebbleDrawCommandImage(icon), x + inset, y + inset);
-        else render.drawBitmap(new Poco.PebbleBitmap(assets.WEATHER_ICON_TINY), x + inset, y + inset);
-      }
-    }
-    // The label is centred across the card, or in the band beside the icon square when it
-    // would reach the square; until fully revealed it stays ink-grey, then white on the band.
-    const room = w - CARD_SQUARE - 6;
-    const [face, capTop, cap] = this.headers.find(([f]) => textWidth(label, f) <= room) ?? this.headers.at(-1);
-    const width = textWidth(label, face);
-    let left = x + ((w - width) >> 1);
-    if (left < x + CARD_SQUARE + 2) left = x + CARD_SQUARE + ((room - width) >> 1);
-    drawText(label, face, shade === 255 ? WHITE : ink(shade), left, y + ((CARD_SQUARE - cap) >> 1) - capTop);
-    const divider = y + CARD_HEADER - 1;
-    render.drawLine(x, divider, x + w - 1, divider, quiet, 1);
+    // The cutout: the frame's corner cleared away, nothing drawn around it.
+    render.fillRectangle(WHITE, x, edge - CUT_HEIGHT + 1, CUT_WIDTH, CUT_HEIGHT);
+    // The icon, once the card is fully revealed and the flying icon has landed.
+    const iconTop = y + this.iconTop(item);
+    if (shade === 255 && item !== this.landing) render.drawDCI(new Poco.PebbleDrawCommandImage(icon), x, iconTop);
+    // The name, its cap ink centred on the icon, starting where the bottom edge resumes.
+    const room = w - CUT_WIDTH - 2;
+    const [face, capTop, cap] = this.captions.find(([f]) => textWidth(label, f) <= room) ?? this.captions.at(-1);
+    drawText(label, face, ink(shade), x + CUT_WIDTH + 1,
+             iconTop + (WIDGET_ICON >> 1) - (cap >> 1) - capTop);
     if (body === "weather") {
-      drawWeather(WEATHER_DEMO, {x, y: divider + 1, w}, shade);
+      drawWeather(WEATHER_DEMO, {x, y: y + 1, w}, shade);
     } else if (body) {
-      CARDS[body].draw({x, y: divider + 1, w}, shade);
+      CARDS[body].draw({x, y: y + 1, w}, shade);
     } else {
-      const top = divider + 1 + CARD_TEXT_PADDING;
+      const top = y + CARD_TEXT_PADDING;
       this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop);
       if (source) {
         drawText(source, font("Gothic-Regular", 14), quiet, x + CARD_TEXT_INSET,

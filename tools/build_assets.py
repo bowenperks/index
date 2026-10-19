@@ -140,10 +140,48 @@ def icon(shapes, scale, stroke_width):
     return image(size, size, commands)
 
 
-def street_map():
+def scale_pdc(path, factor, stroke):
+    """A PDC image scaled by `factor`, its stroke widths mapped by `stroke(width)`, for the
+    cards' medium icons. Circles' radii round up a little so small dots keep their weight."""
+    data = path.read_bytes()
+    assert data[:4] == b'PDCI'
+    _, _, width, height, count = struct.unpack_from('<BBhhH', data, 8)
+    at, commands = 16, []
+    for _ in range(count):
+        kind, hidden, color, stroke_width, fill, extra, points = struct.unpack_from('<5B2H', data, at)
+        at += 9
+        coords = [struct.unpack_from('<2h', data, at + 4 * index) for index in range(points)]
+        at += 4 * points
+        if kind == 2:
+            extra = max(1, round(extra * factor + 0.3))
+        commands.append(struct.pack('<5B2H', kind, hidden, color, stroke(stroke_width) if stroke_width else 0,
+                                    fill, extra, points) +
+                        b''.join(struct.pack('<2h', round(x * factor), round(y * factor)) for x, y in coords))
+    return image(round(width * factor), round(height * factor), commands)
+
+
+MEDIUM_SIZE = 36   # the cards' icons, in their bottom-left cutouts
+
+
+def medium_icons():
+    # From the 25px icons (2px strokes become 3px) and, for the weather, the 80px vector
+    # partly-cloudy icon the peek unfolds (its 4px and 3px strokes become 3px and 2px).
+    scale = MEDIUM_SIZE / ICON_SIZE
+    for name in ('beeper', 'reminder', 'pin'):
+        (PDC / f'index-widget-{name}-medium.pdc').write_bytes(
+            scale_pdc(PDC / f'index-widget-{name}.pdc', scale, lambda width: round(width * scale)))
+    for name, shapes in ICONS.items():
+        (PDC / f'index-widget-{name}-medium.pdc').write_bytes(icon(shapes, scale, 3))
+    (PDC / 'index-widget-weather-medium.pdc').write_bytes(
+        scale_pdc(PDC / 'index-weather-partly-cloudy-large.pdc', MEDIUM_SIZE / LARGE_SIZE,
+                  lambda width: round(width * 0.75)))
+
+
+def street_map(width=176, height=94):
     # The "Where is" card's map, after the OpenFreeMap snapshot around 10 Berners St: light
     # grey blocks between white streets, with a green square. A vector image rather than
-    # the 186 x 100 bitmap, which would take ~9 KB of the app's heap while shown.
+    # the bitmap, which would take ~9 KB of the app's heap while shown. Laid out on a
+    # 186 x 100 grid and scaled to `width` x `height`, the map's inset place in its card.
     LIGHT, GREEN = 0xEA, 0xEE   # light grey, mint green
     blocks = [
         # Above Eastcastle St (y 26-36).
@@ -156,9 +194,10 @@ def street_map():
         [(0, 74), (33, 74), (31, 100), (0, 100)], [(41, 74), (96, 74), (96, 100), (39, 100)],
         [(106, 74), (186, 74), (186, 100), (106, 100)],
     ]
-    commands = [command(1, points, fill=LIGHT) for points in blocks]
-    commands.append(command(1, [(112, 80), (140, 80), (140, 100), (112, 100)], fill=GREEN))
-    return image(186, 100, commands)
+    scale = lambda points: [(round(x * width / 186), round(y * height / 100)) for x, y in points]
+    commands = [command(1, scale(points), fill=LIGHT) for points in blocks]
+    commands.append(command(1, scale([(112, 80), (140, 80), (140, 100), (112, 100)]), fill=GREEN))
+    return image(width, height, commands)
 
 
 def inset(points, distance):
@@ -246,6 +285,8 @@ STATIC = [
 for widget in ('alarm', 'beeper', 'timer', 'reminder', 'note', 'tool', 'pin') + tuple(ICONS):
     STATIC += [(f'{widget.upper()}_ICON', f'pdc/index-widget-{widget}.pdc', 'raw'),
                (f'{widget.upper()}_LARGE', f'pdc/index-widget-{widget}-large.pdc', 'raw')]
+for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
+    STATIC.append((f'{widget.upper()}_MEDIUM', f'pdc/index-widget-{widget}-medium.pdc', 'raw'))
 STATIC += [
     ('MIC', 'pdc/index-mic.pdc', 'raw'),
     ('STREET_MAP', 'pdc/index-street-map.pdc', 'raw'),
@@ -261,6 +302,7 @@ def build():
     (PDC / 'index-mic.pdc').write_bytes(microphone())
     (PDC / 'index-street-map.pdc').write_bytes(street_map())
     (PDC / 'index-typing-bubble.pdc').write_bytes(typing_bubble())
+    medium_icons()
     for name, shapes in ICONS.items():
         (PDC / f'index-widget-{name}.pdc').write_bytes(icon(shapes, 1, 2))
         (PDC / f'index-widget-{name}-large.pdc').write_bytes(icon(shapes, LARGE_SIZE / ICON_SIZE, 4))

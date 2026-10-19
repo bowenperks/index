@@ -1,5 +1,6 @@
-// The bodies of the demo's rich result cards, below a card's header band: today's to-dos
-// with a snapshot of the timeline, a translation, and a map with a pin and address. Like
+// The bodies of the demo's rich result cards, which fill the card (its icon and label hang
+// below it): today's to-dos with a snapshot of the timeline, a translation, and a map with
+// a pin and address. Like
 // the weather card, their content is hardcoded and set in fixed fonts. Each is one
 // function that measures its body (called without a frame) or draws it.
 import Poco from "commodetto/Poco";
@@ -7,8 +8,10 @@ import {STREET_MAP, PIN_ICON} from "assets";
 import {render, LIGHT_GRAY, COBALT, ink, font, drawText, textWidth, resetPen} from "theme";
 
 const PADDING = 10, BOX = 12;
-// The map's location, on Berners St between Eastcastle St and the lane; the pin's tip.
-const MAP_WIDTH = 186, MAP_HEIGHT = 100, PLACE_X = 101, PLACE_Y = 61, PIN_TIP_X = 12, PIN_TIP_Y = 24;
+// The map, inset 6px inside the card's top and sides (clear of its rounded corners); its
+// location, on Berners St between Eastcastle St and the lane; the pin's tip.
+const MAP_WIDTH = 176, MAP_HEIGHT = 94, MAP_INSET = 6, PLACE_X = 96, PLACE_Y = 57;
+const PIN_TIP_X = 12, PIN_TIP_Y = 24;
 
 // The card being drawn: its body frame and reveal opacity (no frame while measuring), and
 // the ink top of the next row.
@@ -75,12 +78,12 @@ function map() {
   if (frame && shade === 255) {
     const x = frame.x + ((frame.w - MAP_WIDTH) >> 1);
     render.drawDCI(new Poco.PebbleDrawCommandImage(STREET_MAP), x, y);
-    // The street's name, its cap ink centred on the street (y 26-36).
-    drawText("EASTCASTLE ST", font("Gothic-Bold", 14), ink(170), x + 6, y + 22);
+    // The street's name, its cap ink centred on the street (y 24-34).
+    drawText("EASTCASTLE ST", font("Gothic-Bold", 14), ink(170), x + 6, y + 20);
     render.drawCircle(render.makeColor(170, 255, 255), x + PLACE_X, y + PLACE_Y, 9);
     render.drawDCI(new Poco.PebbleDrawCommandImage(PIN_ICON), x + PLACE_X - PIN_TIP_X, y + PLACE_Y - PIN_TIP_Y);
   } else if (frame) {
-    render.fillRectangle(ink(Math.min(shade, 85)), frame.x + 1, y, frame.w - 2, MAP_HEIGHT);
+    render.fillRectangle(ink(Math.min(shade, 85)), frame.x + MAP_INSET, y, MAP_WIDTH, MAP_HEIGHT);
   }
   y += MAP_HEIGHT + PADDING;
   text("Elizabeth", "Gothic-Bold", 24, 10, 14, 9);
@@ -94,7 +97,7 @@ function run(card, body, opacity) {
   frame = body;
   shade = opacity;
   const top = body ? body.y : 0;
-  y = top + (card === map ? 0 : PADDING);
+  y = top + (card === map ? MAP_INSET : PADDING);
   card();
   frame = undefined;
   return y - top + PADDING + 2;

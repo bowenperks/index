@@ -183,6 +183,46 @@
         },
         {
           "type": "raw",
+          "name": "INDEX_WEATHER_MEDIUM",
+          "file": "pdc/index-widget-weather-medium.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_BEEPER_MEDIUM",
+          "file": "pdc/index-widget-beeper-medium.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_REMINDER_MEDIUM",
+          "file": "pdc/index-widget-reminder-medium.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_PIN_MEDIUM",
+          "file": "pdc/index-widget-pin-medium.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_HOME_MEDIUM",
+          "file": "pdc/index-widget-home-medium.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEB_MEDIUM",
+          "file": "pdc/index-widget-web-medium.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TODAY_MEDIUM",
+          "file": "pdc/index-widget-today-medium.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TRANSLATE_MEDIUM",
+          "file": "pdc/index-widget-translate-medium.pdc"
+        },
+        {
+          "type": "raw",
           "name": "INDEX_MIC",
           "file": "pdc/index-mic.pdc"
         },
