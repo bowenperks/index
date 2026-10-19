@@ -23,8 +23,7 @@ back at the centre.
 
 Widget cards have no header: the card is all information. Its frame stops short of the
 bottom-left corner, leaving a cutout with no lines around it, where the widget's 36px icon
-sits, rising well into the corner and hanging below the card. The widget's name is set in
-bold capitals underneath the card, centred between the card's left and right edges.
+sits, rising well into the corner and hanging below the card. There is no other label.
 
 The home screen (date, big clock, icon carousel, greeting) is no longer on the page.
 The app's heap cannot hold it alongside the chat (see Memory). `home.js` and
