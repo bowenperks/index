@@ -31,6 +31,7 @@ export const DEMO = [
   ["What's the Spanish word for afternoon?", "translate", "Afternoon in Spanish is la tarde."],
 ];
 
+// @strip dictation
 // Words that pick a demo result from a request said differently (the voice build).
 const KEYWORDS = [["message", 0], ["remind", 1], ["light", 2], ["today", 3], ["gdpr", 4],
                   ["where", 5], ["weather", 6], ["spanish", 7]];
@@ -53,3 +54,4 @@ export function resolve(question) {
   return {text: "Try asking me to send a message, set a reminder or turn off the lights, " +
                 "what's on today, where Elizabeth is, the weather, or a Spanish word."};
 }
+// @endstrip

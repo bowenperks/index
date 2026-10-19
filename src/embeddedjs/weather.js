@@ -4,7 +4,7 @@
 // hardcoded: the address is 10 Berners Street, London.
 import Poco from "commodetto/Poco";
 import {WEATHER_DISC, WEATHER_ICON} from "assets";
-import {render, ink, font, drawText, textWidth, drawWrapped, art} from "theme";
+import {render, ink, font, drawText, textWidth, wrap, art} from "theme";
 
 export const DEMO = {
   location: "Fitzrovia, London",
@@ -51,5 +51,12 @@ export function drawWeather(card, body, shade) {
   alignRight(card.condition, font("Gothic-Regular", 18), conditionTop - CONDITION_CAP_TOP);
   alignRight(card.temperature, font("Leco-Bold", 36), temperatureTop - TEMPERATURE_CAP_TOP);
   alignRight(card.range, font("Gothic-Bold", 18), rangeTop - RANGE_CAP_TOP);
-  drawWrapped(card.forecast, font("Gothic-Bold", 14), color, left, forecastTop - FORECAST_CAP_TOP, width);
+  // The forecast is fixed, so it is wrapped once and kept with the card: wrapping it again
+  // every frame would be garbage, and collections stall motion on the watch.
+  const forecastFont = font("Gothic-Bold", 14);
+  const lines = card.forecastLines ??= wrap(card.forecast, forecastFont, width);
+  for (let index = 0; index < lines.length; index++) {
+    drawText(lines[index], forecastFont, color, left,
+             forecastTop - FORECAST_CAP_TOP + index * forecastFont.height);
+  }
 }

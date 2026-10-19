@@ -9,7 +9,7 @@ import Button from "pebble/button";
 import Dictation from "pebble/dictation";
 // @endstrip
 import Chat from "chat";
-import {DEMO, resolve} from "prompts";
+import {DEMO} from "prompts";
 import {onFrame, isAnimating, now} from "motion";
 import {setTimeout, startTimers} from "timers";
 // @strip profile
@@ -29,19 +29,19 @@ let dictating = false;
 // Animation updates paint on their existing frame tick; other changes paint on the next
 // tick of the app's one timer (timers.js), never on a native timer of their own.
 //
-// After each frame the firmware copies the app's frame buffer to the display on its own
-// task, and when the display is still busy it defers that copy to a later moment. A frame
-// drawn into the buffer too soon can then be copied half done: a white flash, icons gone
-// for a moment. So a frame is never started until the previous one has had FRAME_GAP_MS
-// to reach the display.
-//
-// The firmware also flushes the whole screen to the display for every frame, whatever
-// changed, which takes about 40ms on the watch: frames cannot come faster than every
-// ~50ms however little they draw. Measured, frames then landed one or two 33ms ticks
-// apart at random, which reads as stutter. With the gap at 40ms every frame takes two
-// ticks: a steady 15 a second, which looks smoother than a jittery 20.
-const FRAME_GAP_MS = 40;
-let lastDraw = 0, lastDrawEnd = -FRAME_GAP_MS;
+// After each frame the firmware copies the app's frame buffer to its own, on its own
+// task and at once, then sends it to the display, which takes under 20ms on the watch.
+// While the display is still busy with the frame before, the copy waits for it, and a
+// frame drawn into the buffer meanwhile is copied half done: a white flash, icons gone
+// for a moment. The display's transfer of the last frame began before this one was
+// drawn, so it is over FRAME_PERIOD_MS after this one started; the prompt copy is done
+// FRAME_SETTLE_MS after it ended. A frame starts no sooner than either: every 33ms tick
+// while a frame draws within the tick, 30 a second.
+const FRAME_PERIOD_MS = 28, FRAME_SETTLE_MS = 6;
+let frameDue = 0;   // when the next frame may start
+// @strip profile
+let lastDrawEnd = 0;
+// @endstrip
 function invalidate() {
   drawPending = true;
   if (!isAnimating() && drawTimer === undefined) armDraw();
@@ -51,7 +51,7 @@ function armDraw() {
   drawTimer = setTimeout(() => {
     drawTimer = undefined;
     draw();
-  }, Math.max(0, lastDrawEnd + FRAME_GAP_MS - now()));
+  }, Math.max(0, frameDue - now()));
 }
 
 // Instrumented builds (INDEX_INSTRUMENT=1) keep, per phase of a turn, how many frames were
@@ -96,37 +96,43 @@ function draw() {
     drawPending = false;
     return;
   }
-  if (now() - lastDrawEnd < FRAME_GAP_MS) {
+  if (now() < frameDue) {
     // Too soon after the last frame: the next animation tick, or a timer, draws it.
     if (!isAnimating() && drawTimer === undefined) armDraw();
     return;
   }
   drawPending = false;
-  lastDraw = now();
+  const start = now();
+  // @strip profile
   const kind = chat.dirty === true ? "full" : "band";
+  // @endstrip
   chat.render();
   const end = now();
   // @strip profile
-  if (PROFILE) record(chat.phase + " " + kind, lastDraw - lastDrawEnd, end - lastDraw);
-  // @endstrip
+  if (PROFILE) record(chat.phase + " " + kind, start - lastDrawEnd, end - start);
   lastDrawEnd = end;
+  // @endstrip
+  frameDue = Math.max(start + FRAME_PERIOD_MS, end + FRAME_SETTLE_MS);
 }
 
 onFrame(draw);
 
 const chat = new Chat(invalidate, talk);
 
+// @strip dictation
+import {resolve} from "prompts";
 // A transcribed question starts a turn, with Index's result for it known up front.
 function ask(question) {
   if (!chat.ask(question, resolve(question))) {
     chat.showNotice("I couldn't start that question. Please try again.");
   }
 }
+// @endstrip
 
 function playNext() {
   if (dictating || chat.busy) return;
-  const [question] = DEMO[nextDemo];
-  if (!chat.listen(question, RECORDING_MS, resolve(question))) return;
+  const [question, widget, text] = DEMO[nextDemo];
+  if (!chat.listen(question, RECORDING_MS, {widget, text})) return;
   trace(`Index Alloy playtest ${nextDemo + 1}/${DEMO.length}: ${question}\n`);
   nextDemo = (nextDemo + 1) % DEMO.length;
 }
@@ -206,7 +212,7 @@ const touch = new device.sensor.Touch({
   onSample() {
     chat.touch(this.sample());
     // A finger is followed at once, not on the next timer tick (at most every 20ms).
-    if (drawPending && now() - lastDraw >= 20) draw();
+    if (drawPending) draw();
   },
 });
 

@@ -7,10 +7,7 @@ import {setInterval, clearInterval} from "timers";
 export const NORMAL_MAX = 65535;          // ANIMATION_NORMALIZED_MAX
 const FRAME_MS = 33;                      // ANIMATION_TARGET_FRAME_INTERVAL_MS
 
-const EASE_IN = Uint16Array.of(
-  0, 64, 256, 576, 1024, 1600, 2304, 3136, 4096, 5184, 6400, 7744, 9216, 10816, 12544, 14400,
-  16384, 18496, 20736, 23104, 25600, 28224, 30976, 33856, 36864, 40000, 43264, 46656, 50176,
-  53824, 57600, 61504, 65535);
+// Only the curves Index uses: ease-in is left out, like the rest of the firmware's table.
 const EASE_OUT = Uint16Array.of(
   0, 4031, 7935, 11711, 15359, 18879, 22271, 25535, 28671, 31679, 34559, 37311, 39935, 42431,
   44799, 47039, 49151, 51135, 52991, 54719, 56319, 57791, 59135, 60351, 61439, 62399, 63231,
@@ -32,7 +29,6 @@ function interpolate(progress, table) {
 }
 
 export const linear = progress => progress;
-export const easeIn = progress => interpolate(progress, EASE_IN);
 export const easeOut = progress => interpolate(progress, EASE_OUT);
 export const easeInOut = progress => interpolate(progress, EASE_IN_OUT);
 

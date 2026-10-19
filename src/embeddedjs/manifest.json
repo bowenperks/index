@@ -22,11 +22,20 @@
 	},
 	"ffi": {
 		"sources": [
-			"./content_size.c"
+			"./content_size.c",
+			"./scroll.c"
 		],
 		"functions": {
 			"contentSize": {
 				"arguments": [],
+				"returns": "int32_t"
+			},
+			"hookRender": {
+				"arguments": [],
+				"returns": "void"
+			},
+			"shiftRows": {
+				"arguments": ["int32_t", "int32_t", "int32_t"],
 				"returns": "int32_t"
 			}
 		}

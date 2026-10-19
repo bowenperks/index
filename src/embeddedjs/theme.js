@@ -79,40 +79,17 @@ export function drawText(text, f, color, x, top) {
   render.drawText(text, f, color, x, top + capOffset(f) - 1);
 }
 
-// Keep recent text reusable without retaining every question or clock reading forever.
-// Evict before inserting so even a full cache stays within its per-font limit. The caches
-// are small: their keys and lines live in the XS heap, which never shrinks once grown, and
-// history entries keep their own wrapped lines.
-const WIDTH_CACHE_LIMIT = 6, WRAP_CACHE_LIMIT = 2;
-function remember(cache, key, value, limit) {
-  if (cache.size >= limit) cache.delete(cache.keys().next().value);
-  cache.set(key, value);
-}
-
-const widths = new Map();
-export function textWidth(text, f) {
-  let cache = widths.get(f);
-  if (!cache) widths.set(f, cache = new Map());
-  let width = cache.get(text);
-  if (width === undefined) {
-    width = render.getTextWidth(text, f);
-    remember(cache, text, width, WIDTH_CACHE_LIMIT);
-  }
-  return width;
-}
+// A text's width is measured natively every time. A cache of recent widths per font
+// came to hold entries for every font the cards use, a few KB of the XS heap (which
+// never shrinks), to save a handful of measurements a frame.
+export const textWidth = (text, f) => render.getTextWidth(text, f);
 
 // Word wrap as Pebble's text layout does it: whole words per line, a word too long for a
 // line broken by character, and a trailing ellipsis when lines run out. Candidate lines are
-// measured uncached, so a long text's many prefixes never fill the width cache.
-const wraps = new Map();
+// measured uncached, so a long text's many prefixes never fill the width cache; the lines
+// are not cached either, since each entry keeps its own.
 export function wrap(text, f, width, maxLines = 64) {
-  const textWidth = (string, face) => render.getTextWidth(string, face);
-  const key = text + "\u0000" + width + "\u0000" + maxLines;
-  let cache = wraps.get(f);
-  if (!cache) wraps.set(f, cache = new Map());
-  let lines = cache.get(key);
-  if (lines) return lines;
-  lines = [];
+  let lines = [];
   let line = "";
   const words = text.split(" ").filter(word => word.length);
   for (let index = 0; index < words.length; index++) {
@@ -141,7 +118,6 @@ export function wrap(text, f, width, maxLines = 64) {
     kept[maxLines - 1] = last.trimEnd() + "…";
     lines = kept;
   }
-  remember(cache, key, lines, WRAP_CACHE_LIMIT);
   return lines;
 }
 
@@ -153,15 +129,3 @@ export function measure(text, f, width, maxLines) {
   return {w: widest, h: lines.length * f.height, lines};
 }
 
-export function drawWrapped(text, f, color, x, top, width, align = "left", maxLines) {
-  const lines = wrap(text, f, width, maxLines);
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    let left = x;
-    if (align !== "left") {
-      const spare = width - textWidth(line, f);
-      left += align === "center" ? Math.trunc(spare / 2) : spare;
-    }
-    drawText(line, f, color, left, top + index * f.height);
-  }
-}

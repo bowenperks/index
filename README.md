@@ -99,7 +99,9 @@ allocation fails and the app faults (`App fault! PC: 0`). To stay inside:
 - Code size is RAM twice over: in the mod, and as the function objects XS makes for
   it. `sh tools/xsb_sizes.sh` prints each module's bytecode size. Code a build does
   not use is removed by `tools/strip.py` (blocks between `// @strip NAME` and
-  `// @endstrip`): the measuring code unless instrumented, dictation from the playtest.
+  `// @endstrip`): the measuring code unless instrumented, and from the playtest the
+  dictation session, the spoken-request matching (`resolve`), the notice bubble and
+  the page's hiding. `assets.js` lists only the resource ids the modules name.
 - Every live object, closure and table entry costs 16-byte slots; prefer code to
   data tables, keep per-entry properties few, and let go of what a turn made as soon
   as it lands.
@@ -119,9 +121,17 @@ profile. Before handing a build over, run the whole reel (ten Select presses thr
 
 ## Frame rate
 
-The firmware flushes the whole screen to the display for every frame, whatever the
-app changed, which takes about 40 ms on the watch: no Alloy animation can exceed
-roughly 15-20 frames a second there, however little it draws. Frames are therefore
-paced at a steady two ticks (15 a second, `FRAME_GAP_MS` in main.js); an uneven one
-or two ticks reads as stutter. Partial repaints still matter: they cut the app's own
-drawing from ~25 ms to under 10.
+After each frame the firmware copies the app's frame buffer to its own and sends it to
+the display, which takes under 20 ms on the watch. While the display is still busy with
+the frame before, the copy waits for it, and a frame drawn into the buffer meanwhile
+reaches the display half done: a white flash, icons gone for a moment. So a frame starts
+no sooner than 28 ms after the last one started and 6 ms after it ended
+(`FRAME_PERIOD_MS` and `FRAME_SETTLE_MS` in main.js): every 33 ms tick, 30 a second,
+as long as each frame draws within its tick. A frame that takes longer skips a tick, so
+frames are kept small: a band while only the voice input animates, and, when the page
+scrolls, the rows already on the screen are moved natively (`src/c/scroll.c`, through
+the FFI, which keeps the drawing context from the root layer's update proc) and only
+what the scroll exposed is painted: a strip at the top or bottom, the position bar's
+column and, on Up and Down, each card's stretching icon. Poco's `clip()` on Pebble
+restores, when popped, the rectangle it saved when pushed, and `begin()` does not set
+that rectangle: push the whole screen first (see `scrollScreen` in chat.js).
