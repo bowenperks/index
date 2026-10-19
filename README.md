@@ -116,8 +116,11 @@ allocation fails and the app faults (`App fault! PC: 0`). To stay inside:
 
 `INDEX_INSTRUMENT=1 sh tools/build.sh` adds XS's memory instrumentation (free app
 heap, chunk, slot and stack use, once a second) to `pebble logs`, and a per-turn frame
-profile. Before handing a build over, run the whole reel (ten Select presses through
-`tools/screen.sh`) on a fresh emulator and watch for faults.
+profile. The instrumentation lines only come if `pebble logs` was already connected when
+the app launched. Before handing a build over, run the whole reel (ten Select presses
+through `tools/screen.sh`, nine seconds apart) on a fresh emulator and look for `memory
+full` in the log, an `App fault`, or the launcher in the screenshots: the XS abort is
+not a fault.
 
 ## Frame rate
 
