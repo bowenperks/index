@@ -623,7 +623,8 @@ export default class Chat {
 
   // --- drawing --------------------------------------------------------------------------
 
-  // Paints what has changed since the last frame. Most changes repaint the screen, but
+  // Paints what has changed since the last frame, and says whether it submitted a frame.
+  // Most changes repaint the screen, but
   // while only the voice input or the recording animates, just that band is repainted,
   // and a scroll moves the rows already on the screen and paints only what it exposed:
   // on the watch, redrawing every card's text each frame is what makes motion stutter.
@@ -652,6 +653,9 @@ export default class Chat {
       hooked = true;
       Natives.hookRender();
     }
+    // A frame is on its way to the display (main.js paces the next by its copy); a render
+    // that paints nothing submits nothing.
+    return true;
   }
 
   // A scrolled frame. The rows on the screen move by the scroll, natively (scroll.c), and

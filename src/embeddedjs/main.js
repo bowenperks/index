@@ -31,16 +31,35 @@ let dictating = false;
 // Animation updates paint on their existing frame tick; other changes paint on the next
 // tick of the app's one timer (timers.js), never on a native timer of their own.
 //
-// After each frame the firmware copies the app's frame buffer to its own, on its own
-// task and at once, then sends it to the display, which takes under 20ms on the watch.
-// While the display is still busy with the frame before, the copy waits for it, and a
-// frame drawn into the buffer meanwhile is copied half done: a white flash, icons gone
-// for a moment. The display's transfer of the last frame began before this one was
-// drawn, so it is over FRAME_PERIOD_MS after this one started; the prompt copy is done
-// FRAME_SETTLE_MS after it ended. A frame starts no sooner than either: every 33ms tick
-// while a frame draws within the tick, 30 a second.
-const FRAME_PERIOD_MS = 28, FRAME_SETTLE_MS = 6;
-let frameDue = 0;   // when the next frame may start
+// After each frame's render pass the firmware copies the app's frame buffer to its own and
+// sends it to the display: a copy at most every 40 ms on the watch (measured), as each
+// waits for the display to take the last. A frame drawn into the buffer before the last
+// one's copy is copied half done: a strip unpainted, an icon cleared, the thinking ring's
+// black fill before its white, seen as flicker. The firmware tells an app nothing when its
+// copy happens, so it is worked out: a frame's copy is due when its render pass has run
+// (scroll.c counts them) and no sooner than COPY_PERIOD_MS after the last frame's, and the
+// next frame waits for it. Animations tick every 10 ms (motion.js), so a frame starts
+// within 10 ms of that, with the animations' latest state: 25 frames a second, evenly.
+const COPY_PERIOD_MS = 40;
+// A frame's render pass follows within milliseconds; if none has come by this long (the
+// window covered, say), the frame is taken as gone rather than waited on.
+const PASS_TIMEOUT_MS = 100;
+let copyDue = -COPY_PERIOD_MS, submittedAt = 0, submittedPasses = -1;
+
+function frameWait() {
+  const time = now();
+  if (submittedPasses >= 0 && Natives.renderCount() === submittedPasses &&
+      time - submittedAt < PASS_TIMEOUT_MS) {
+    return 2;
+  }
+  return copyDue + 2 - time;
+}
+
+function frameSubmitted() {
+  submittedAt = now();
+  submittedPasses = Natives.renderCount();
+  copyDue = Math.max(submittedAt, copyDue + COPY_PERIOD_MS);
+}
 // @strip profile
 let lastDrawEnd = 0;
 // @endstrip
@@ -49,11 +68,11 @@ function invalidate() {
   if (!isAnimating() && drawTimer === undefined) armDraw();
 }
 
-function armDraw() {
+function armDraw(wait = 0) {
   drawTimer = setTimeout(() => {
     drawTimer = undefined;
     draw();
-  }, Math.max(0, frameDue - now()));
+  }, wait);
 }
 
 // Instrumented builds (INDEX_INSTRUMENT=1) keep, per phase of a turn, how many frames were
@@ -65,7 +84,7 @@ const PROFILE = false;
 const SCROLL_BENCH = false;
 // @strip profile
 const profile = PROFILE ? {} : undefined;
-let profiling = false, renders = 0, scrollStart = 0;
+let profiling = false, renders = 0, scrollStart = 0, lastEndMs = 0, underCopy = 0;
 
 function record(key, gap, draw, texts) {
   if (!chat.busy && chat.stretch === undefined) {
@@ -79,7 +98,10 @@ function record(key, gap, draw, texts) {
     }
     const passes = Natives.renderCount();
     trace(`render passes ${passes - renders} in ${now() - scrollStart}ms; ms in shift ${stats.shift}, ` +
-          `strip ${stats.strip}, icon column ${stats.icons}, rest ${stats.rest}\n`);
+          `strip ${stats.strip}, icon column ${stats.icons}, rest ${stats.rest}; ` +
+          `drawn before the last frame's render pass ${underCopy}\n`);
+    Natives.renderLog();
+    underCopy = 0;
     stats.shift = stats.icons = stats.strip = stats.rest = stats.stretch = stats.stretches = 0;
     renders = passes;
     if (!SCROLL_BENCH) {
@@ -114,9 +136,10 @@ function draw() {
     drawPending = false;
     return;
   }
-  if (now() < frameDue) {
-    // Too soon after the last frame: the next animation tick, or a timer, draws it.
-    if (!isAnimating() && drawTimer === undefined) armDraw();
+  const wait = frameWait();
+  if (wait > 0) {
+    // The last frame's copy is not over: the next animation tick, or a timer, draws it.
+    if (!isAnimating() && drawTimer === undefined) armDraw(wait);
     return;
   }
   drawPending = false;
@@ -124,14 +147,15 @@ function draw() {
   // @strip profile
   const kind = chat.dirty === true ? "full" : chat.dirty === "scroll" ? "shift" : "band";
   stats.texts = 0;
+  if (Natives.renderStamp() < lastEndMs) underCopy++;
   // @endstrip
-  chat.render();
+  if (chat.render()) frameSubmitted();
   const end = now();
   // @strip profile
   if (PROFILE) record(chat.phase + " " + kind, start - lastDrawEnd, end - start, stats.texts);
   lastDrawEnd = end;
+  lastEndMs = Natives.nowMs();
   // @endstrip
-  frameDue = Math.max(start + FRAME_PERIOD_MS, end + FRAME_SETTLE_MS);
 }
 
 onFrame(draw);
@@ -262,6 +286,20 @@ if (SCROLL_BENCH) {
     render.end();
     chat.invalidate();
   }, 2500);
+  setTimeout(() => {
+    Natives.renderLog();
+    let flips = 0;
+    const flood = globalThis.setInterval(() => {
+      render.begin(0, 0, 1, 1);
+      render.fillRectangle(++flips % 2 ? render.makeColor(255, 255, 255) : render.makeColor(254, 254, 254), 0, 0, 1, 1);
+      render.end();
+    }, 5);
+    globalThis.setTimeout(() => {
+      globalThis.clearInterval(flood);
+      trace(`flood: ${flips} frames drawn\n`);
+      Natives.renderLog();
+    }, 1500);
+  }, 4000);
   const presses = [false, false, true, true, false, false, true, true];
   presses.forEach((down, index) => setTimeout(() => {
     trace(`bench ${index + 1}/${presses.length}: ${down ? "down" : "up"}\n`);

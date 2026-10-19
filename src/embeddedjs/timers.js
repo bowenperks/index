@@ -2,7 +2,8 @@
 // callbacks can leave expired evented timers queued in Alloy's Pebble host.
 import Time from "time";
 
-const TICK_MS = 33;
+// Fine enough for animation steps (motion.js) and frames timed to the display (main.js).
+const TICK_MS = 10;
 const jobs = [];
 let nextId = 1;
 let nativeTimer;

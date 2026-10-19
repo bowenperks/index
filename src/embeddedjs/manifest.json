@@ -63,8 +63,24 @@
 				"returns": "void"
 			},
 			"iconCapture": {
-				"arguments": ["int32_t", "int32_t", "int32_t"],
+				"arguments": [
+					"int32_t",
+					"int32_t",
+					"int32_t"
+				],
 				"returns": "int32_t"
+			},
+			"renderStamp": {
+				"arguments": [],
+				"returns": "int32_t"
+			},
+			"nowMs": {
+				"arguments": [],
+				"returns": "int32_t"
+			},
+			"renderLog": {
+				"arguments": [],
+				"returns": "void"
 			}
 		}
 	}

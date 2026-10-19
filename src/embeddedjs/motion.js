@@ -1,11 +1,14 @@
 // Pebble's animation timing, ported from the firmware (applib/ui/animation_timing.c) so
 // Index moves exactly as the native app did: the same normalised progress, easing tables
-// and segmented delays, driven by one ~30 fps frame timer.
+// and segmented delays, stepped every 10 ms.
 import Time from "time";
 import {setInterval, clearInterval} from "timers";
 
 export const NORMAL_MAX = 65535;          // ANIMATION_NORMALIZED_MAX
 const FRAME_MS = 33;                      // ANIMATION_TARGET_FRAME_INTERVAL_MS
+// Animations are stepped more often than they are drawn: a frame starts as soon as the
+// display can take it (main.js), and shows where the animations are by then.
+const TICK_MS = 10;
 
 // Only the curves Index uses: ease-in is left out, like the rest of the firmware's table.
 const EASE_OUT = Uint16Array.of(
@@ -99,7 +102,7 @@ export class Animation {
   schedule() {
     this.started = now();
     if (!running.includes(this)) running.push(this);
-    ticker ??= setInterval(tick, FRAME_MS);
+    ticker ??= setInterval(tick, TICK_MS);
     return this;
   }
   get scheduled() {

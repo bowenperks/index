@@ -137,14 +137,19 @@ over, run that whole reel on a fresh emulator and look for `memory full` in the 
 
 ## Frame rate
 
-After each frame the firmware copies the app's frame buffer to its own and sends it to
-the display, which takes under 20 ms on the watch. While the display is still busy with
-the frame before, the copy waits for it, and a frame drawn into the buffer meanwhile
-reaches the display half done: a white flash, icons gone for a moment. So a frame starts
-no sooner than 28 ms after the last one started and 6 ms after it ended
-(`FRAME_PERIOD_MS` and `FRAME_SETTLE_MS` in main.js): every 33 ms tick, 30 a second,
-as long as each frame draws within its tick. A frame that takes longer skips a tick, so
-frames are kept small: a band while only the voice input animates, and, when the page
+After each frame's render pass the firmware copies the app's frame buffer to its own and
+sends it to the display. While the display is still busy with the frame before, the copy
+waits, and on the watch copies come no faster than one every 35-40 ms (measured: the
+scroll bench floods frames and logs the render passes' gaps). Alloy draws straight into
+the buffer whenever its code runs, so a frame drawn before the last one's copy is copied
+half done: a strip unpainted, an icon cleared, the thinking ring's black fill before its
+white, seen as flicker. The firmware tells an app nothing when its copy happens, so
+`src/c/scroll.c` works it out from the render passes (no sooner than the pass, nor than
+40 ms after the copy before) and main.js starts a frame only once `frameWait()` says the
+last one's copy is over. Animations step every 10 ms (motion.js) so a frame starts within
+10 ms of that, with their latest state: about 25 frames a second. A frame must therefore
+draw well inside 40 ms, so frames are kept small: a band while only the voice input
+animates, and, when the page
 scrolls, the rows already on the screen are moved natively (`src/c/scroll.c`, through
 the FFI, which keeps the drawing context from the root layer's update proc) and only
 what the scroll exposed is painted: a strip at the top or bottom, the position bar's

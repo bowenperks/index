@@ -11,9 +11,60 @@ static GContext *s_ctx;
 // builds compare it with the frames drawn).
 static int32_t s_renders;
 
+// Milliseconds on the wall clock (seconds wrap every ~28 hours of uptime: harmless here).
+static int32_t prv_now_ms(void) {
+  time_t seconds;
+  uint16_t ms;
+  time_ms(&seconds, &ms);
+  return (int32_t)(seconds % 100000) * 1000 + ms;
+}
+
+// When the last render pass ran, and the gaps between passes since the last renderLog
+// (the first 48 kept, for the bench's log).
+static int32_t s_render_at, s_gap_min = 0x7fffffff, s_gap_max, s_gap_sum, s_gap_count;
+static bool s_gap_skip;
+static uint8_t s_gaps[48];
+
 static void prv_keep_context(Layer *layer, GContext *ctx) {
   s_ctx = ctx;
   s_renders++;
+  const int32_t now = prv_now_ms();
+  if (s_render_at && !s_gap_skip) {
+    const int32_t gap = now - s_render_at;
+    if (gap < s_gap_min) s_gap_min = gap;
+    if (gap > s_gap_max) s_gap_max = gap;
+    if (s_gap_count < (int32_t)sizeof(s_gaps)) s_gaps[s_gap_count] = gap > 255 ? 255 : gap;
+    s_gap_sum += gap;
+    s_gap_count++;
+  }
+  s_gap_skip = false;
+  s_render_at = now;
+}
+
+int32_t renderStamp(void) {
+  return s_render_at;
+}
+
+int32_t nowMs(void) {
+  return prv_now_ms();
+}
+
+void renderLog(void) {
+  if (s_gap_count) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "render passes: %ld, gap min %ld avg %ld max %ld ms", (long)s_gap_count,
+            (long)s_gap_min, (long)(s_gap_sum / s_gap_count), (long)s_gap_max);
+    char line[200];
+    int used = 0;
+    const int32_t kept = s_gap_count < (int32_t)sizeof(s_gaps) ? s_gap_count : (int32_t)sizeof(s_gaps);
+    for (int32_t i = 0; i < kept && used < (int)sizeof(line) - 5; i++) {
+      used += snprintf(line + used, sizeof(line) - used, "%d ", s_gaps[i]);
+    }
+    APP_LOG(APP_LOG_LEVEL_INFO, "gaps: %s", line);
+  }
+  s_gap_min = 0x7fffffff;
+  s_gap_max = s_gap_sum = s_gap_count = 0;
+  // The gap to the next pass spans whatever came before this reading: not counted.
+  s_gap_skip = true;
 }
 
 // Called after the first frame, which is when Poco sets its stub.
