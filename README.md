@@ -13,7 +13,7 @@ voice input at the very end, a microphone in the thinking ring that sends out a 
 ping. Up/Down or a touch drag scroll the history.
 
 Asking pushes things in from the bottom. The recording's waveform runs in the
-user's blue bubble, then its words appear as they are transcribed. While Index thinks,
+user's blue bubble, then the whole transcribed message comes in at once. While Index thinks,
 the microphone's ring slides to the bottom left and turns into the thinking cube, like a
 messaging app's avatar, with Index's typing bubble ("•••", the dots darkening in turn)
 beside it. When the result comes in, it takes the words' place: the history keeps

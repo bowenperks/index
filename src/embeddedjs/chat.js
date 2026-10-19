@@ -4,10 +4,10 @@
 // microphone beneath them.
 //
 // Asking pushes things in from the bottom: the recording's waveform in the user's bubble,
-// then its words as they are transcribed. The microphone's ring then slides to the bottom
-// left and turns into the thinking cube, with Index's typing bubble ("•••") beside it.
-// When the result comes in it takes the words' place, so the history keeps results rather
-// than questions.
+// then the whole transcribed message at once. The microphone's ring then slides to the
+// bottom left and turns into the thinking cube, with Index's typing bubble ("•••") beside
+// it. When the result comes in it takes the words' place, so the history keeps results
+// rather than questions.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
@@ -50,7 +50,7 @@ const VOICE_PADDING = 12, VOICE_HEIGHT = 36;
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds. The ping goes out over 15 steps of 80ms, every 26 steps.
 const PING_STEP = 80, PING_STEPS = 15, PING_PERIOD = 26;
-const WAVE_STEP = 70, WORD_STEP = 90, THINK_AFTER = 300, THINK_MIN = 800;
+const WAVE_STEP = 70, THINK_AFTER = 300, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40, REGROW_MS = 260;
 
 // Each widget: its header label, small and large icons, and its body if not text.
@@ -141,7 +141,6 @@ export default class Chat {
       // slack so the drawn text never re-wraps.
       const measured = measure(text, this.font, w - 16);
       item.lines = measured.lines;
-      item.shown = item.words = text.split(" ").filter(word => word).length;
       w = measured.w + 18;
       x = WIDTH - MARGIN - w;
       h = this.textHeight(item.lines) + 18;
@@ -222,15 +221,15 @@ export default class Chat {
       this.waveform.step();
       this.invalidate();
     }, WAVE_STEP);
-    this.timer = setTimeout(() => this.transcribe(true), ms);
+    this.timer = setTimeout(() => this.transcribe(), ms);
     return true;
   }
 
-  // A request already transcribed (by the system's dictation): its words come in whole.
+  // A request already transcribed by the system's dictation.
   ask(question) {
     if (this.busy || !question || !question.trim()) return false;
     this.beginTurn(question);
-    this.transcribe(false);
+    this.transcribe();
     return true;
   }
 
@@ -240,27 +239,16 @@ export default class Chat {
     this.trim();
   }
 
-  // The recording becomes its words, revealed one by one when `reveal`; then Index thinks.
-  transcribe(reveal) {
+  // The recording becomes the user's whole message at once, pushed in from the bottom;
+  // then Index thinks.
+  transcribe() {
     if (this.waveTimer !== undefined) clearInterval(this.waveTimer);
     this.waveTimer = undefined;
     if (this.items[this.items.length - 1].type === "voice") this.items.pop();
     this.waveform = undefined;
     this.phase = "transcribing";
-    const query = this.size({type: "query"}, this.question);
-    this.push(query);
-    if (!reveal) {
-      this.timer = setTimeout(() => this.slide(), THINK_AFTER);
-      return;
-    }
-    query.shown = 0;
-    this.timer = setInterval(() => {
-      if (++query.shown >= query.words) {
-        clearInterval(this.timer);
-        this.timer = setTimeout(() => this.slide(), THINK_AFTER);
-      }
-      this.invalidate();
-    }, WORD_STEP);
+    this.push(this.size({type: "query"}, this.question));
+    this.timer = setTimeout(() => this.slide(), THINK_AFTER);
   }
 
   // Index starts typing: the microphone's ring slides to the bottom left, where it becomes
@@ -540,18 +528,12 @@ export default class Chat {
       render.drawRoundRect(x, y, w, h, VIVID_CERULEAN, PILL_RADIUS, GCORNERS_ALL);
       this.waveform?.draw(x + VOICE_PADDING, y + (h >> 1), WHITE);
     } else if (item.type === "query") {
-      // The user's words: a solid pill with no tail, so it never reads as Index. Words
-      // appear one at a time as they are transcribed; as the result comes in it fades away.
+      // The user's words: a solid pill with no tail, so it never reads as Index. As the
+      // result comes in it fades away.
       const step = shade >= 255 ? 3 : Math.trunc(shade * 3 / 255);
       if (!step) return;
       render.drawRoundRect(x, y, w, h, FADE_BLUES[step - 1], PILL_RADIUS, GCORNERS_ALL);
-      let remaining = step === 3 ? item.shown : 0;
-      for (let index = 0; remaining > 0 && index < item.lines.length; index++) {
-        const words = item.lines[index].split(" ");
-        drawText(words.slice(0, remaining).join(" "), this.font, WHITE, x + 8,
-                 y + 9 - this.textTop + index * this.font.height);
-        remaining -= words.length;
-      }
+      if (step === 3) this.drawLines(item.lines, WHITE, x + 8, y + 9 - this.textTop);
     } else if (item.widget) {
       this.drawCard(item, y);
     } else {
