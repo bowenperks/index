@@ -39,8 +39,10 @@ const SCROLL_MS = 250;   // a ScrollLayer's animated offset
 // thinking cube's art (31px above its centre, up to 42 below as it turns) fits inside it.
 const SLOT_HEIGHT = 80, SLOT_CENTRE = 36;
 // While Index thinks, the cube sits at the bottom left (its art spans 35px either side of
-// its centre at most), and the typing bubble beside it, centred on the cube's art.
-const CUBE_X = 44, TYPING_X = 89, TYPING_TOP = -11, TYPING_WIDTH = 56, TYPING_HEIGHT = 30;
+// its centre at most). The typing bubble fills the rest of the row, from beside the cube
+// to the user's bubbles' margin, a one-line reply bubble tall, centred on the cube's art
+// (5px below its canvas centre); its dots are 8px, 16px apart.
+const CUBE_X = 44, TYPING_X = 89, TYPING_ART_CENTRE = 5, TYPING_DOT = 4, TYPING_PITCH = 16;
 const SLIDE_MS = 220, TYPING_FADE_MS = 200, TYPING_STEP_MS = 220;
 // The recording's bubble: the waveform in a pill.
 const VOICE_PADDING = 12, VOICE_HEIGHT = 36;
@@ -646,12 +648,13 @@ export default class Chat {
                                        : (now() - this.thinkingAt) * 255 / TYPING_FADE_MS;
     const shade = Math.min(255, Math.max(0, Math.trunc(fade / 85) * 85));
     if (!shade) return;
-    const y = cy + TYPING_TOP;
-    this.drawBubble(TYPING_X, y, TYPING_WIDTH, TYPING_HEIGHT, [], shade);
+    const w = WIDTH - MARGIN - TYPING_X, h = this.textHeight([""]) + 18;
+    const y = cy + TYPING_ART_CENTRE - (h >> 1);
+    this.drawBubble(TYPING_X, y, w, h, [], shade);
     const active = Math.trunc(now() / TYPING_STEP_MS) % 4;
     for (let dot = 0; dot < 3; dot++) {
-      render.drawCircle(ink(dot === active ? shade : Math.min(shade, 85)), TYPING_X + 16 + dot * 12,
-                        y + (TYPING_HEIGHT >> 1), 3);
+      render.drawCircle(ink(dot === active ? shade : Math.min(shade, 85)),
+                        TYPING_X + (w >> 1) + (dot - 1) * TYPING_PITCH, y + (h >> 1), TYPING_DOT);
     }
   }
 
