@@ -14,7 +14,8 @@ import {render} from "theme";
 
 // Timings and effects as the firmware's peek sets them (peek_layer.c, unfold.h,
 // scale_segmented.h), plus a short hold so the large icon reads before it goes.
-const UNFOLD_MS = 500, HOLD_MS = 300, FLY_MS = 300, TOTAL_MS = UNFOLD_MS + HOLD_MS + FLY_MS;
+export const UNFOLD_MS = 500, HOLD_MS = 300, FLY_MS = 300;
+const TOTAL_MS = UNFOLD_MS + HOLD_MS + FLY_MS;
 const DOT_STROKE = 8;        // the peek's 9px dot
 const UNFOLD_EXPAND = 8;     // unfold deflate effect
 const FLY_EXPAND = 10;       // scale-to deflate effect
@@ -52,7 +53,9 @@ export default class IconTransition {
     return this.active && this.flyingStarted;
   }
 
-  // Unfolds the PDC resource at (cx, cy) at its own size, then scales it into `to`.
+  // Unfolds the PDC resource at (cx, cy) at its own size, then scales it into `to`. The
+  // destination can instead be given by `retarget` from the `flying` callback, once the
+  // page has settled where the icon will land.
   start(resource, cx, cy, to) {
     if (this.active) return false;
     this.image = new Poco.PebbleDrawCommandImage(resource);
@@ -61,11 +64,7 @@ export default class IconTransition {
     const w = this.image.width, h = this.image.height;
     this.size = [w, h];
     this.large = {x: cx - (w >> 1), y: cy - (h >> 1), w, h};
-    this.to = to;
-    // The bounce overshoots past the destination along the line of travel.
-    const dx = to.x - this.large.x, dy = to.y - this.large.y;
-    const magnitude = Math.floor(Math.sqrt(dx * dx + dy * dy));
-    this.bounce = magnitude ? [Math.trunc(FLY_BOUNCE * dx / magnitude), Math.trunc(FLY_BOUNCE * dy / magnitude)] : [0, 0];
+    this.retarget(to ?? this.large);
     this.elapsed = 0;
     this.flyingStarted = false;
     this.active = true;
@@ -83,6 +82,14 @@ export default class IconTransition {
     }).schedule();
     this.invalidate();
     return true;
+  }
+
+  retarget(to) {
+    this.to = to;
+    // The bounce overshoots past the destination along the line of travel.
+    const dx = to.x - this.large.x, dy = to.y - this.large.y;
+    const magnitude = Math.floor(Math.sqrt(dx * dx + dy * dy));
+    this.bounce = magnitude ? [Math.trunc(FLY_BOUNCE * dx / magnitude), Math.trunc(FLY_BOUNCE * dy / magnitude)] : [0, 0];
   }
 
   release() {

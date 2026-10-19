@@ -133,6 +133,66 @@
         },
         {
           "type": "raw",
+          "name": "INDEX_PIN_ICON",
+          "file": "pdc/index-widget-pin.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_PIN_LARGE",
+          "file": "pdc/index-widget-pin-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_HOME_ICON",
+          "file": "pdc/index-widget-home.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_HOME_LARGE",
+          "file": "pdc/index-widget-home-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEB_ICON",
+          "file": "pdc/index-widget-web.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEB_LARGE",
+          "file": "pdc/index-widget-web-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TODAY_ICON",
+          "file": "pdc/index-widget-today.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TODAY_LARGE",
+          "file": "pdc/index-widget-today-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TRANSLATE_ICON",
+          "file": "pdc/index-widget-translate.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TRANSLATE_LARGE",
+          "file": "pdc/index-widget-translate-large.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_MIC",
+          "file": "pdc/index-mic.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_STREET_MAP",
+          "file": "pdc/index-street-map.pdc"
+        },
+        {
+          "type": "raw",
           "name": "INDEX_THINKING_00",
           "file": "pdc/thinking/frame-00.pdc"
         },

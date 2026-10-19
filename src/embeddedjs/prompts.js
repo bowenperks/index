@@ -1,51 +1,49 @@
-// The demo's prompts: an exact spoken phrase (any case and spacing, with optional closing
-// punctuation from dictation) picks a hardcoded reply, and for most a widget card.
+// The demo's content: the history the page opens on, the eight demo requests the playtest
+// asks in turn, and how a transcribed request picks its hardcoded result (a widget card
+// and its text). Nothing is really sent, set or switched.
 
-const SPACE = /\s/;
-
-function matches(text, prompt) {
-  if (!text) return false;
-  let at = 0;
-  while (at < text.length && SPACE.test(text[at])) at++;
-  for (const expected of prompt) {
-    if (expected === " ") {
-      if (!SPACE.test(text[at] ?? "")) return false;
-      while (at < text.length && SPACE.test(text[at])) at++;
-    } else {
-      if ((text[at] ?? "").toLowerCase() !== expected) return false;
-      at++;
-    }
-  }
-  // Dictation can append sentence punctuation. Do not accept extra words, partial
-  // matches, or phrases embedded in unrelated requests.
-  while (at < text.length && SPACE.test(text[at])) at++;
-  while (text[at] === "." || text[at] === "!" || text[at] === "?") at++;
-  while (at < text.length && SPACE.test(text[at])) at++;
-  return at === text.length;
-}
-
-// Each widget's spoken phrase and its reply text (the card's text, and its fallback).
-const WIDGET_PROMPTS = [
-  ["weather", "weather", "It's 14° and overcast in London."],
-  ["alarm", "alarm", "Alarm set for today at 12:00 PM"],
-  ["beeper", "beeper", "Sending msg via Beeper"],
-  ["timer", "timer", "Timer set for 10 minutes"],
-  ["reminder", "reminder", "Reminder set for today at 5:00 PM"],
-  ["note", "new note", "New note created"],
-  ["tool", "use a tool", "Using tool via MCP"],
+// What Index has done before, oldest first, as the phone's Index feed lists it: a day
+// label, or a result's widget and text.
+export const HISTORY = [
+  ["Yesterday"],
+  ["", "reminder", "Reminder set for 1pm: change Liz's phone for the Pixel 9 Pro"],
+  ["", "home", "Unlocked the front door"],
+  ["Today"],
+  ["", "beeper", "Sent 'Cool, we're at home' to Danny"],
+  ["", "home", "Turned the fan off"],
 ];
 
-export function widgetFor(transcription) {
-  for (const [widget, phrase] of WIDGET_PROMPTS) {
-    if (matches(transcription, phrase)) return widget;
-  }
-  return undefined;
-}
+// The demo reel's requests, in order: [question, widget, result].
+export const DEMO = [
+  ["Send a message to my wife. Roz just said there's a bike in the distance.", "beeper",
+   "Sent 'Roz just said there's a bike in the distance' to your wife"],
+  ["Remind me tomorrow at 4 pm to adjust the bike brakes.", "reminder", "Reminder set for 4pm tomorrow"],
+  ["Turn the living room lights off.", "home", "Turned lights off"],
+  ["What do I have to do today?", "today", "3 to-dos and 2 events today"],
+  ["Does the GDPR say you have to delete every possible piece of personally identifiable information?",
+   "web", "No, you do not have to delete everything. Under GDPR Article 17, the right to erasure " +
+   "does not apply when retaining data is necessary to comply with a legal obligation, such as " +
+   "statutory tax and accounting retention laws."],
+  ["Where is Elizabeth?", "map", "Elizabeth is near 10 Berners St, London"],
+  ["What's the weather this afternoon?", "weather", "It's 14° and overcast in London."],
+  ["What's the Spanish word for afternoon?", "translate", "Afternoon in Spanish is la tarde."],
+];
 
-export function replyFor(transcription) {
-  for (const [, phrase, reply] of WIDGET_PROMPTS) {
-    if (matches(transcription, phrase)) return reply;
+// Words that pick a demo result from a request said differently (the voice build).
+const KEYWORDS = [["message", 0], ["remind", 1], ["light", 2], ["today", 3], ["gdpr", 4],
+                  ["where", 5], ["weather", 6], ["spanish", 7]];
+
+// The result for a transcribed request: {widget, text}. A message names its own recipient
+// and words; anything unrecognised gets a plain text reply listing what to try.
+export function resolve(question) {
+  const spoken = (question ?? "").toLowerCase();
+  const message = /message to (my )?(\w+)[.,:!]*\s+(.+?)[.!?]*$/i.exec(question ?? "");
+  const exact = DEMO.find(([asked]) => asked.toLowerCase() === spoken.trim());
+  if (!exact && message) {
+    return {widget: "beeper", text: `Sent '${message[3]}' to ${message[1] ? "your " : ""}${message[2]}`};
   }
-  if (matches(transcription, "add to note")) return "noted";
-  return "INDEX UI demo. prompts include: new note, add to note, reminder, alarm, timer, beeper, use a tool, weather";
+  const found = exact ?? DEMO[KEYWORDS.find(([word]) => spoken.includes(word))?.[1]];
+  if (found) return {widget: found[1], text: found[2]};
+  return {text: "Try asking me to send a message, set a reminder or turn off the lights, " +
+                "what's on today, where Elizabeth is, the weather, or a Spanish word."};
 }

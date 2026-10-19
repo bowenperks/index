@@ -1,0 +1,106 @@
+// The bodies of the demo's rich result cards, below a card's header band: today's to-dos
+// with a snapshot of the timeline, a translation, and a map with a pin and address. Like
+// the weather card, their content is hardcoded and set in fixed fonts. Each is one
+// function that measures its body (called without a frame) or draws it.
+import Poco from "commodetto/Poco";
+import {STREET_MAP, PIN_ICON} from "assets";
+import {render, LIGHT_GRAY, COBALT, ink, font, drawText, textWidth, resetPen} from "theme";
+
+const PADDING = 10, BOX = 12;
+// The map's location, on Berners St between Eastcastle St and the lane; the pin's tip.
+const MAP_WIDTH = 186, MAP_HEIGHT = 100, PLACE_X = 101, PLACE_Y = 61, PIN_TIP_X = 12, PIN_TIP_Y = 24;
+
+// The card being drawn: its body frame and reveal opacity (no frame while measuring), and
+// the ink top of the next row.
+let frame, shade, y;
+
+// A row of text with its cap ink at the current row: `capTop` is where the face's cap ink
+// starts inside its text box and `cap` how tall it is (from the PBFs), so rows are spaced
+// on ink. Tone 0 is ink, 1 quiet grey, 2 cobalt. Moves down past the row and `after`.
+function text(string, family, size, capTop, cap, after, tone = 0, indent = 0) {
+  if (frame) {
+    const color = tone === 2 && shade === 255 ? COBALT : ink(tone === 1 ? Math.min(shade, 170) : shade);
+    drawText(string, font(family, size), color, frame.x + PADDING + indent, y - capTop);
+  }
+  y += cap + after;
+}
+
+const label = string => text(string, "Gothic-Bold", 14, 5, 9, 8, 1);
+
+function rule() {
+  if (frame) render.drawLine(frame.x + PADDING, y, frame.x + frame.w - PADDING - 1, y, LIGHT_GRAY, 1);
+  y += 11;
+}
+
+function today() {
+  label("TO-DOS");
+  for (const todo of ["Take the trash out", "Order more rings", "Speaker on the trike"]) {
+    // A box, its cap-height text centred on it.
+    if (frame) {
+      resetPen();
+      render.frameRoundRect(frame.x + PADDING, y - 1, BOX, BOX, ink(Math.min(shade, 170)), 2);
+    }
+    text(todo, "Gothic-Regular", 18, 7, 11, 10, 0, BOX + 8);
+  }
+  rule();
+  label("TIMELINE");
+  for (const [time, title] of [["10:00", "Design review"], ["12:30", "Hendrik visits"]]) {
+    // A dot in the timeline's colour, the time in bold, then the event.
+    if (frame && shade === 255) render.drawCircle(COBALT, frame.x + PADDING + 4, y + 5, 4);
+    const before = y;
+    text(time, "Gothic-Bold", 18, 7, 11, 0, 0, 14);
+    y = before;
+    text(title, "Gothic-Regular", 18, 7, 11, 12, 0, 22 + textWidth("00:00", font("Gothic-Bold", 18)));
+  }
+  // The link that would open the watch's timeline, with its chevron.
+  if (frame) {
+    const x = frame.x + PADDING + textWidth("Open timeline", font("Gothic-Bold", 18)) + 6;
+    const color = shade === 255 ? COBALT : ink(shade);
+    render.drawLine(x, y + 1, x + 4, y + 5, color, 2);
+    render.drawLine(x + 4, y + 5, x, y + 9, color, 2);
+  }
+  text("Open timeline", "Gothic-Bold", 18, 7, 11, 0, 2);
+}
+
+function translate() {
+  label("ENGLISH");
+  text("afternoon", "Gothic-Regular", 28, 10, 18, 10);
+  rule();
+  label("SPANISH");
+  text("la tarde", "Gothic-Bold", 28, 10, 18, 9, 2);
+  text("feminine noun", "Gothic-Regular", 18, 7, 11, 0, 1);
+}
+
+function map() {
+  if (frame && shade === 255) {
+    const x = frame.x + ((frame.w - MAP_WIDTH) >> 1);
+    render.drawDCI(new Poco.PebbleDrawCommandImage(STREET_MAP), x, y);
+    // The street's name, its cap ink centred on the street (y 26-36).
+    drawText("EASTCASTLE ST", font("Gothic-Bold", 14), ink(170), x + 6, y + 22);
+    render.drawCircle(render.makeColor(170, 255, 255), x + PLACE_X, y + PLACE_Y, 9);
+    render.drawDCI(new Poco.PebbleDrawCommandImage(PIN_ICON), x + PLACE_X - PIN_TIP_X, y + PLACE_Y - PIN_TIP_Y);
+  } else if (frame) {
+    render.fillRectangle(ink(Math.min(shade, 85)), frame.x + 1, y, frame.w - 2, MAP_HEIGHT);
+  }
+  y += MAP_HEIGHT + PADDING;
+  text("Elizabeth", "Gothic-Bold", 24, 10, 14, 9);
+  text("10 Berners St, London", "Gothic-Regular", 18, 7, 11, 6);
+  text("Updated 2 min ago", "Gothic-Regular", 14, 5, 9, 0, 1);
+}
+
+// Runs a card's body: draws it into `body` ({x, y, w}) at `opacity`, or with no body only
+// measures it. Returns the body's height.
+function run(card, body, opacity) {
+  frame = body;
+  shade = opacity;
+  const top = body ? body.y : 0;
+  y = top + (card === map ? 0 : PADDING);
+  card();
+  frame = undefined;
+  return y - top + PADDING + 2;
+}
+
+export const CARDS = {};
+for (const [name, card] of [["today", today], ["translate", translate], ["map", map]]) {
+  CARDS[name] = {height: run(card), draw: (body, opacity) => run(card, body, opacity)};
+}

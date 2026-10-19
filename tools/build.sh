@@ -9,6 +9,8 @@
 # INDEX_AUTOPLAY='["weather", "alarm"]' builds dist/index-alloy-autoplay.pbw instead, which
 # asks those questions by itself after launch (for the emulator, which has no microphone).
 # INDEX_PLAYTEST=1 builds dist/index-alloy-playtest.pbw: Select advances one example at a time.
+# INDEX_INSTRUMENT=1 adds XS memory instrumentation (slot, chunk and stack use, free app
+# heap) to the build's log, readable with `pebble logs` while a log listener is connected.
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BUILD_DIR=${INDEX_ALLOY_BUILD_DIR:-/tmp/index-alloy}
@@ -22,6 +24,11 @@ mkdir -p "$BUILD_DIR"
 rsync -a --delete --exclude build --exclude dist --exclude '.lock-waf*' --exclude '._*' \
   --exclude .DS_Store "$ROOT/" "$BUILD_DIR/"
 OUTPUT=index-alloy.pbw
+if [ "${INDEX_INSTRUMENT:-0}" = 1 ]; then
+  sed -i '' 's/^    \.fxBuildFFI = fxBuildFFI,$/    .flags = kModdableCreationFlagLogInstrumentation, .fxBuildFFI = fxBuildFFI,/' \
+    "$BUILD_DIR/src/c/mdbl.c"
+  grep -q kModdableCreationFlagLogInstrumentation "$BUILD_DIR/src/c/mdbl.c" || { echo "INSTRUMENT not applied" >&2; exit 1; }
+fi
 if [ "${INDEX_PLAYTEST:-0}" = 1 ]; then
   python3 - "$BUILD_DIR/src/embeddedjs/main.js" <<'PY'
 from pathlib import Path

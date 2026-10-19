@@ -23,8 +23,6 @@ const FORECAST_CAP_TOP = 5, RANGE_CAP_TOP = 7, RANGE_CAP = 11;
 const TEMPERATURE_CAP_TOP = 11, TEMPERATURE_CAP = 25;
 const CONDITION_GAP = 7, RANGE_GAP = 7, LOCATION_GAP = 10, DISC_GAP = 10;
 
-let disc, icon;
-
 // Draws the content of a framed card whose body starts at `body` ({x, y, w}). Shade is the
 // reveal's opacity (255 = fully shown); the disc and icon appear once it is fully shown.
 export function drawWeather(card, body, shade) {
@@ -32,8 +30,10 @@ export function drawWeather(card, body, shade) {
   const width = body.w - 2 * PADDING_X;
   const discTop = top + LOCATION_CAP + LOCATION_GAP;
   if (shade === 255) {
-    disc ??= new Poco.PebbleDrawCommandImage(WEATHER_DISC);
-    icon ??= new Poco.PebbleBitmap(WEATHER_ICON);
+    // Looked up per draw: Alloy caches a resource object only while something holds it, so
+    // keeping these would hold the 50px bitmap in the heap after the card scrolls away.
+    const disc = new Poco.PebbleDrawCommandImage(WEATHER_DISC);
+    const icon = new Poco.PebbleBitmap(WEATHER_ICON);
     const cx = left + DISC / 2, cy = discTop + DISC / 2;
     render.drawDCI(disc, cx - DISC / 2, cy - DISC / 2);
     render.drawBitmap(icon, cx - ICON / 2, cy - ICON / 2);

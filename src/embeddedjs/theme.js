@@ -19,7 +19,9 @@ export const CONTENT_SIZE = contentSize;
 export const WHITE = render.makeColor(255, 255, 255);
 export const BLACK = render.makeColor(0, 0, 0);
 export const DARK_GRAY = render.makeColor(85, 85, 85);
+export const LIGHT_GRAY = render.makeColor(170, 170, 170);
 export const VIVID_CERULEAN = render.makeColor(0, 170, 255);
+export const COBALT = render.makeColor(0, 85, 170);
 
 // Animations pass opacity: 0 is hidden, 255 fully visible (black on the white page).
 export function ink(opacity) {
@@ -58,9 +60,10 @@ export function drawText(text, f, color, x, top) {
 }
 
 // Keep recent text reusable without retaining every question or clock reading forever.
-// Evict before inserting so even a full cache stays within its per-font limit.
-// Only a few bubbles are visible at once; history can be measured again when scrolled.
-const WIDTH_CACHE_LIMIT = 24, WRAP_CACHE_LIMIT = 8;
+// Evict before inserting so even a full cache stays within its per-font limit. The caches
+// are small: their keys and lines live in the XS heap, which never shrinks once grown, and
+// history entries keep their own wrapped lines.
+const WIDTH_CACHE_LIMIT = 6, WRAP_CACHE_LIMIT = 2;
 function remember(cache, key, value, limit) {
   if (cache.size >= limit) cache.delete(cache.keys().next().value);
   cache.set(key, value);
@@ -79,9 +82,11 @@ export function textWidth(text, f) {
 }
 
 // Word wrap as Pebble's text layout does it: whole words per line, a word too long for a
-// line broken by character, and a trailing ellipsis when lines run out.
+// line broken by character, and a trailing ellipsis when lines run out. Candidate lines are
+// measured uncached, so a long text's many prefixes never fill the width cache.
 const wraps = new Map();
 export function wrap(text, f, width, maxLines = 64) {
+  const textWidth = (string, face) => render.getTextWidth(string, face);
   const key = text + "\u0000" + width + "\u0000" + maxLines;
   let cache = wraps.get(f);
   if (!cache) wraps.set(f, cache = new Map());

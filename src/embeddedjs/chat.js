@@ -1,74 +1,78 @@
-// Index's one scrolling page: the home screen is its top section and the conversation
-// stacks below it. A slim time bar takes over once the big clock has scrolled away, and
-// thinking (and a widget icon's entrance) get a screen of their own.
+// Index's one scrolling page, laid out like a messaging app: the history of what Index has
+// done, newest at the bottom, under a slim time bar, and at the very end the voice input,
+// a microphone in the thinking ring. The page opens on the newest results with the
+// microphone beneath them.
+//
+// Asking pushes things in from the bottom: the recording's waveform in the user's bubble,
+// then its words as they are transcribed; the microphone's ring then turns into the
+// thinking cube, Index's "typing" animation. When the result comes in it takes the words'
+// place, so the history keeps results rather than questions.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
-import {setTimeout, clearTimeout} from "timers";
+import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
 import * as assets from "assets";
 import {Animation, NORMAL_MAX, easeInOut, easeOut} from "motion";
-import {render, WIDTH, HEIGHT, CONTENT_SIZE, SMALL, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY,
-        VIVID_CERULEAN, ink, font, drawText, textWidth, measure, drawWrapped, resetPen} from "theme";
-import Thinking, {RING_RADIUS_Q8} from "thinking";
-import IconTransition from "transition";
+import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
+        ink, font, drawText, textWidth, measure, resetPen} from "theme";
+import Thinking, {RING_RADIUS_Q8, drawRing} from "thinking";
+import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
+import {CARDS} from "cards";
+import {drawMic, Waveform, RING} from "mic";
+import {HISTORY} from "prompts";
 
-const CAPACITY = 12;
-// Conversation bubbles stack straight down the page below the home section: each question
-// is a solid pill hugging its text against the right margin, its reply a tailed bubble
-// left-aligned under it, separated by one small fixed gap.
+const CAPACITY = 10;   // history entries (results and day labels) kept, to bound memory
+// Index's replies sit at the left margin with a tail; the user's bubbles are solid pills
+// against the right margin; cards take a narrower margin on both sides and have no tail.
 const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6;
 // Widget cards: a blue header band (the icon in a 41px square at its left, the label
-// centred across the card) closed off by a divider above the body.
+// centred) closed off by a divider above the body.
 const CARD_RADIUS = 7, CARD_SQUARE = 41, CARD_HEADER = CARD_SQUARE + 1, WIDGET_BODY = 154;
 const WIDGET_ICON = 25, WIDGET_DOT_RADIUS_Q8 = 4 * 256;   // the notification peek's 9px dot
-// A text card's reply is set like a notification's body: the conversation font,
-// left-aligned at the card's 10px inset, with a text bubble's 9px above and below.
-const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9;
+// A card's text is set like a notification's body, at the card's 10px inset, with a text
+// bubble's 9px above and below; a source line, if any, follows in small type.
+const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
 const GCORNERS_TOP = 3, GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
-const TOUCH_DECIDE = 6, CAROUSEL_TOUCH_SLOP = 6;
+// The voice input's slot at the end of the page: the ring's centre sits 36px down, so the
+// thinking cube's art (33px above its centre, 35 below) fits inside it.
+const SLOT_HEIGHT = 76, SLOT_CENTRE = 36;
+// The recording's bubble: the waveform in a pill.
+const VOICE_PADDING = 12, VOICE_HEIGHT = 36;
+// Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
+const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
+// Timings, in milliseconds. The ping goes out over 15 steps of 80ms, every 26 steps.
+const PING_STEP = 80, PING_STEPS = 15, PING_PERIOD = 26;
+const WAVE_STEP = 70, WORD_STEP = 90, THINK_AFTER = 300, THINK_MIN = 800;
+const FADE_MS = 200, REVEAL_MS = 300, RISE = 40, REGROW_MS = 260;
 
+// Each widget: its header label, small and large icons, and its body if not text.
 const WIDGETS = {
-  weather: {label: "Weather", large: assets.WEATHER_LARGE},
-  alarm: {label: "Alarm", icon: assets.ALARM_ICON, large: assets.ALARM_LARGE},
-  beeper: {label: "Beeper", icon: assets.BEEPER_ICON, large: assets.BEEPER_LARGE},
-  timer: {label: "Timer", icon: assets.TIMER_ICON, large: assets.TIMER_LARGE},
-  reminder: {label: "Reminder", icon: assets.REMINDER_ICON, large: assets.REMINDER_LARGE},
-  note: {label: "Note", icon: assets.NOTE_ICON, large: assets.NOTE_LARGE},
-  tool: {label: "Tool", icon: assets.TOOL_ICON, large: assets.TOOL_LARGE},
+  weather: ["Weather", 0, assets.WEATHER_LARGE, "weather"],
+  beeper: ["Beeper", assets.BEEPER_ICON, assets.BEEPER_LARGE],
+  reminder: ["Reminder", assets.REMINDER_ICON, assets.REMINDER_LARGE],
+  home: ["Google Home", assets.HOME_ICON, assets.HOME_LARGE],
+  today: ["Today", assets.TODAY_ICON, assets.TODAY_LARGE, "today"],
+  web: ["Web Answer", assets.WEB_ICON, assets.WEB_LARGE, "", "Source: GDPR, Article 17"],
+  map: ["Location", assets.PIN_ICON, assets.PIN_LARGE, "map"],
+  translate: ["Translate", assets.TRANSLATE_ICON, assets.TRANSLATE_LARGE, "translate"],
 };
 
-function chatLayout(contentWidth, top, questionHeight, questionWidth, answerHeight, answerWidth) {
-  const width = contentWidth - BUBBLE_INSET;
-  if (!questionWidth || questionWidth > width) questionWidth = width;
-  const layout = {
-    question: {x: contentWidth - MARGIN - questionWidth, y: top, w: questionWidth, h: questionHeight},
-    bottom: top + questionHeight,
-  };
-  layout.answer = {x: MARGIN, y: layout.bottom + GAP, w: answerWidth || width, h: answerHeight};
-  if (answerHeight) layout.bottom = layout.answer.y + answerHeight;
-  return layout;
-}
+// A fading bubble steps through the 64-colour palette from Index blue to the page.
+const FADE_BLUES = [render.makeColor(170, 255, 255), render.makeColor(85, 170, 255), VIVID_CERULEAN];
 
 export default class Chat {
-  constructor(home, ready, invalidate) {
-    this.home = home;
+  // `ready(question)` is asked for the result once Index has thought; `talk()` is a tap on
+  // the microphone.
+  constructor(ready, invalidate, talk) {
     this.ready = ready;
     this.invalidate = invalidate;
-    this.turns = [];
-    this.layouts = [];
-    this.nextId = 0;
-    this.activeId = 0;
+    this.talk = talk;
+    this.items = [];
+    this.phase = "idle";
     this.offset = 0;
-    this.followLatest = true;
-    this.visible = false;
-    this.homeInView = false;
     this.notice = "";
-    this.revealProgress = 1024;
-    this.revealDistance = 8;
-    this.contentWidth = WIDTH;
-    this.homeHeight = HEIGHT;
-    this.clockBottom = home.clockBottom;
+    this.pingStep = PING_STEPS;
     const extraLarge = CONTENT_SIZE === EXTRA_LARGE;
     this.headerHeight = extraLarge ? 28 : 20;
     this.clockFont = font("Gothic-Regular", extraLarge ? 24 : 18);
@@ -87,180 +91,280 @@ export default class Chat {
       this.textTop = 10;
       this.textDescender = 4;
     }
-    // Widget headers use Bobby's widget-title face, with cap bearings from the PBFs.
-    if (CONTENT_SIZE < MEDIUM) {
-      this.headerFont = font("Gothic-Bold", 18);
-      this.headerCapTop = 7;
-      this.headerCap = 11;
-    } else if (CONTENT_SIZE === MEDIUM) {
-      this.headerFont = font("Gothic-Bold", 24);
-      this.headerCapTop = 10;
-      this.headerCap = 14;
-    } else {
-      this.headerFont = font("Gothic-Bold", 28);
-      this.headerCapTop = 10;
-      this.headerCap = 18;
-    }
+    // Widget headers use Bobby's widget-title face for the text size, with cap bearings from
+    // the PBFs; a label too wide beside the icon square drops a size.
+    this.headers = [[font("Gothic-Bold", 28), 10, 18], [font("Gothic-Bold", 24), 10, 14],
+                    [font("Gothic-Bold", 18), 7, 11]].slice(CONTENT_SIZE < MEDIUM ? 2 : CONTENT_SIZE === MEDIUM ? 1 : 0);
     this.tail = new Poco.PebbleDrawCommandImage(assets.BUBBLE_TAIL).clone();
-    this.thinking = new Thinking(invalidate, () => this.markReady());
-    this.transition = new IconTransition(invalidate, () => this.revealAnswer(56, 300),
-                                         () => this.invalidate());
+    this.thinking = new Thinking(invalidate, () => this.thinkingDone());
+    this.transition = new IconTransition(invalidate, () => this.landResult(), () => this.finishTurn());
+    for (const [day, widget, text] of HISTORY) {
+      this.items.push(day ? this.size({type: "day", text: day}) : this.makeResult(widget, text));
+    }
     this.refreshTime();
     this.layout();
+    this.offset = this.maxOffset;
   }
 
-  // --- the conversation ------------------------------------------------------------
+  // --- the page's entries ------------------------------------------------------------
 
-  find(id) {
-    return this.turns.find(turn => turn.id === id);
+  makeResult(widget, text) {
+    return this.size({type: "result", widget: WIDGETS[widget] ? widget : undefined}, text);
   }
 
-  get conversationBusy() {
-    return this.turns.length > 0 && this.turns[this.turns.length - 1].state !== "answered";
+  textHeight(lines) {
+    return lines.length * this.font.height - this.textTop + this.textDescender;
   }
 
-  get busy() {
-    return this.conversationBusy || this.transition.active;
-  }
-
-  get hasHistory() {
-    return this.turns.length > 0;
-  }
-
-  // Starts a turn for a question; Index replies once thinking has run.
-  begin(question) {
-    if (this.busy || !question || !question.trim()) return 0;
-    if (this.turns.length === CAPACITY) this.turns.shift();
-    // Reclaim the previous turn's temporary objects before growing the conversation.
-    Debug.gc();
-    do {
-      this.nextId = (this.nextId + 1) >>> 0 || 1;
-    } while (this.find(this.nextId));
-    this.turns.push({id: this.nextId, state: "thinking", question, answer: "", widget: undefined});
-    this.activeId = this.nextId;
-    this.followLatest = true;
-    this.layout();
-    this.focusLatest(true);
-    this.show();
-    return this.activeId;
-  }
-
-  // The reply to this turn will be this widget (known from the request, as a real result
-  // would be while thinking): the cube then closes into the widget's dot.
-  expectWidget(id, widget) {
-    this.expectedWidget = widget;
-    this.expectedId = id;
-  }
-
-  answer(id, text) {
-    const turn = this.find(id);
-    if (!turn || !text) return;
-    Object.assign(turn, {answer: text, widget: undefined, state: "answered", answerHeight: undefined});
-    if (id === this.activeId) {
-      this.cancelTimer();
-      this.thinking.cancel();
+  // Sizes an entry once; the page's fonts and width do not change while it runs.
+  size(item, text) {
+    item.shade = 255;
+    item.rise = 0;
+    let x = MARGIN, w = WIDTH - BUBBLE_INSET, h;
+    if (item.type === "day") {
+      x = 0;
+      w = WIDTH;
+      h = DAY_HEIGHT;
+    } else if (item.type === "voice") {
+      w = this.waveform.width + 2 * VOICE_PADDING;
+      x = WIDTH - MARGIN - w;
+      h = VOICE_HEIGHT;
+    } else if (item.type === "query") {
+      // The user's pill hugs its widest line: eight pixels of padding each side plus two of
+      // slack so the drawn text never re-wraps.
+      const measured = measure(text, this.font, w - 16);
+      item.lines = measured.lines;
+      item.shown = item.words = text.split(" ").filter(word => word).length;
+      w = measured.w + 18;
+      x = WIDTH - MARGIN - w;
+      h = this.textHeight(item.lines) + 18;
+    } else if (item.widget) {
+      const [, , , body, source] = WIDGETS[item.widget];
+      x = CARD_MARGIN;
+      w = WIDTH - 2 * CARD_MARGIN;
+      if (body === "weather") {
+        h = WIDGET_BODY;
+      } else if (body) {
+        h = CARDS[body].height;
+      } else {
+        item.lines = measure(text, this.font, w - 2 * CARD_TEXT_INSET).lines;
+        h = this.textHeight(item.lines) + 2 * CARD_TEXT_PADDING + (source ? SOURCE_GAP + SOURCE_CAP : 0);
+      }
+      h += CARD_HEADER;
+    } else {
+      // A plain reply: Index's bubble with its tail.
+      item.lines = measure(text, this.font, w - 16).lines;
+      h = this.textHeight(item.lines) + 18;
     }
-    this.layout();
-    if (id === this.activeId) {
-      this.focusLatest(this.visible);
-      this.revealAnswer(8, 240);
-    }
+    item.x = x;
+    item.w = w;
+    item.h = h;
+    return item;
   }
 
-  // Answers a turn with a widget card; the text is its fallback.
-  widget(id, widget, text) {
-    const turn = this.find(id);
-    if (!turn || !text || !WIDGETS[widget]) return false;
-    Object.assign(turn, {answer: text, widget, state: "answered", answerHeight: undefined});
-    const expected = this.expectedWidget && this.expectedId === id ? this.expectedWidget : undefined;
-    this.expectedWidget = undefined;
-    if (id === this.activeId) {
-      this.cancelTimer();
-      this.thinking.cancel();
-    }
-    this.layout();
-    if (id !== this.activeId) return true;
-    if (expected === widget && this.startWidgetTransition(turn)) return true;
-    this.focusReply(this.visible);
-    this.revealAnswer(8, 240);
-    return true;
-  }
-
-  // --- layout ----------------------------------------------------------------------
-
-  textBubbleHeight(text, width) {
-    if (!text) return 0;
-    return measure(text, this.font, width - 16).h - this.textTop + this.textDescender + 18;
-  }
-
-  bubbleHeight(text) {
-    return this.textBubbleHeight(text, this.contentWidth - BUBBLE_INSET);
-  }
-
-  // A question pill hugs its widest line: eight pixels of padding each side plus two of
-  // slack so the drawn text never re-wraps.
-  questionWidth(text) {
-    return measure(text, this.font, this.contentWidth - BUBBLE_INSET - 16).w + 18;
-  }
-
-  cardBodyHeight(text, cardWidth) {
-    return measure(text, this.font, cardWidth - 2 * CARD_TEXT_INSET).h - this.textTop +
-           this.textDescender + 2 * CARD_TEXT_PADDING;
-  }
-
+  // Places every entry down the page below the time bar, then the voice input's slot. A
+  // short history sits at the bottom of the screen, as a messaging app's does.
   layout() {
-    // Drop the old geometry before building its replacement: keeping both full layouts
-    // alive can grow XS's slot heap, which leaves less native memory for animation art.
-    this.layouts.length = 0;
     Debug.gc();
-    // The first bubble clears the slim time bar that overlays the top of the conversation.
-    let top = this.homeHeight + this.headerHeight + GAP;
-    this.layouts = this.turns.map(turn => {
-      // Font and content width stay fixed for this page. Retain just the dimensions,
-      // so adding a reply never remeasures the entire conversation's text.
-      if (turn.questionHeight === undefined) {
-        turn.questionHeight = this.bubbleHeight(turn.question);
-        turn.questionWidth = this.questionWidth(turn.question);
-      }
-      const answerWidth = turn.widget ? this.contentWidth - 2 * CARD_MARGIN : 0;
-      if (turn.answerHeight === undefined) {
-        // Every card has the same width and header; the text cards keep a text bubble's
-        // body instead of the weather card's full one.
-        turn.answerHeight = turn.widget
-          ? CARD_HEADER + (turn.widget === "weather" ? WIDGET_BODY
-            : this.cardBodyHeight(turn.answer, answerWidth))
-          : this.bubbleHeight(turn.answer);
-      }
-      const layout = chatLayout(this.contentWidth, top, turn.questionHeight,
-                                turn.questionWidth, turn.answerHeight, answerWidth);
-      // Cards have no tail, so they take the wider card margin on both sides.
-      if (turn.widget) layout.answer.x = CARD_MARGIN;
-      top = layout.bottom + GAP;
-      return layout;
-    });
-    // A conversation is at least one screen tall so the home section can scroll fully
-    // away. A shorter one sits at the bottom of that screen, like a messaging app.
-    let conversation = top - GAP + MARGIN - this.homeHeight;
-    if (conversation < HEIGHT) {
-      const shift = HEIGHT - conversation;
-      for (const layout of this.layouts) {
-        layout.question.y += shift;
-        layout.answer.y += shift;
-        layout.bottom += shift;
-      }
-      conversation = HEIGHT;
-      // A lone exchange: the question floats centred between the time bar and its reply.
-      const only = this.layouts[0];
-      if (this.layouts.length === 1 && only.answer.h) {
-        const spaceTop = this.homeHeight + this.headerHeight;
-        only.question.y = spaceTop + Math.trunc((only.answer.y - spaceTop - only.question.h) / 2);
-      }
+    let top = this.headerHeight + GAP;
+    for (const item of this.items) {
+      item.y = top;
+      top += item.h + GAP;
     }
-    this.contentHeight = this.turns.length ? this.homeHeight + conversation : this.homeHeight;
+    const shift = Math.max(0, HEIGHT - top - SLOT_HEIGHT);
+    for (const item of this.items) item.y += shift;
+    this.slotTop = top + shift;
+    this.contentHeight = this.slotTop + SLOT_HEIGHT;
     this.invalidate();
   }
 
-  // --- scrolling -------------------------------------------------------------------
+  // Adds an entry at the bottom and scrolls it in, pushing the page up.
+  push(item) {
+    this.items.push(item);
+    this.layout();
+    this.setOffset(this.maxOffset, true);
+  }
+
+  // Keeps the history to its capacity, oldest first, without leaving a day label alone.
+  // The page keeps its place: what was on screen stays there.
+  trim() {
+    if (this.items.length < CAPACITY) return;
+    while (this.items.length >= CAPACITY || this.items[0].type === "day" && this.items[1]?.type === "day") {
+      this.items.shift();
+    }
+    const before = this.slotTop;
+    this.layout();
+    this.offsetChanged(this.clamp(this.offset - (before - this.slotTop)));
+  }
+
+  // --- asking -----------------------------------------------------------------------
+
+  get busy() {
+    return this.phase !== "idle";
+  }
+
+  // The playtest: records for `ms`, the waveform running in the user's bubble, then
+  // transcribes `question`. `widget` is the card the result will be, known from the request
+  // as a real result would be while thinking: the cube then closes into its icon's dot.
+  listen(question, widget, ms) {
+    if (this.busy || !this.visible) return false;
+    this.beginTurn(question, widget);
+    this.phase = "listening";
+    this.waveform = new Waveform();
+    this.push(this.size({type: "voice"}));
+    this.waveTimer = setInterval(() => {
+      this.waveform.step();
+      this.invalidate();
+    }, WAVE_STEP);
+    this.timer = setTimeout(() => this.transcribe(true), ms);
+    return true;
+  }
+
+  // A request already transcribed (by the system's dictation): its words come in whole.
+  ask(question, widget) {
+    if (this.busy || !question || !question.trim()) return false;
+    this.beginTurn(question, widget);
+    this.transcribe(false);
+    return true;
+  }
+
+  beginTurn(question, widget) {
+    this.question = question;
+    this.closedToDot = !!WIDGETS[widget];
+    this.stopPing();
+    this.trim();
+  }
+
+  // The recording becomes its words, revealed one by one when `reveal`; then Index thinks.
+  transcribe(reveal) {
+    if (this.waveTimer !== undefined) clearInterval(this.waveTimer);
+    this.waveTimer = undefined;
+    if (this.items[this.items.length - 1].type === "voice") this.items.pop();
+    this.waveform = undefined;
+    this.phase = "transcribing";
+    const query = this.size({type: "query"}, this.question);
+    this.push(query);
+    if (!reveal) {
+      this.timer = setTimeout(() => this.startThinking(), THINK_AFTER);
+      return;
+    }
+    query.shown = 0;
+    this.timer = setInterval(() => {
+      if (++query.shown >= query.words) {
+        clearInterval(this.timer);
+        this.timer = setTimeout(() => this.startThinking(), THINK_AFTER);
+      }
+      this.invalidate();
+    }, WORD_STEP);
+  }
+
+  // The microphone's ring becomes the thinking cube; it folds away once the answer is ready
+  // (after at least one turn), into the ring again or into a widget icon's dot.
+  startThinking() {
+    this.phase = "thinking";
+    if (!this.thinking.start(RING_RADIUS_Q8)) {
+      this.thinkingDone();
+      return;
+    }
+    if (this.closedToDot) this.thinking.setCloseRadius(WIDGET_DOT_RADIUS_Q8);
+    this.timer = setTimeout(() => this.thinking.requestStop(), THINK_MIN);
+  }
+
+  thinkingDone() {
+    this.phase = "answering";
+    this.invalidate();
+    this.ready(this.question);
+  }
+
+  // The result has come in: the question fades and the result takes its place, rising in
+  // from the bottom. A widget's icon first unfolds out of the cube's dot, holds, then flies
+  // into the card's header as the card arrives.
+  result(widget, text) {
+    if (this.phase !== "answering") return;
+    const index = this.items.findIndex(item => item.type === "query");
+    const item = this.makeResult(widget, text);
+    this.pending = [index, item];
+    const slot = this.slotTop - this.offset;
+    const flying = item.widget && slot >= 0 && slot + SLOT_HEIGHT <= HEIGHT &&
+      this.transition.start(WIDGETS[item.widget][2], WIDTH >> 1, slot + SLOT_CENTRE);
+    // The question fades out just before the result arrives; a flying icon lands the result
+    // itself, as its flight begins.
+    this.timer = setTimeout(() => {
+      const query = this.items[index];
+      new Animation(FADE_MS, easeInOut, progress => {
+        query.shade = 255 - Math.trunc(progress * 255 / NORMAL_MAX);
+        this.invalidate();
+      }, () => {
+        if (!flying) this.landResult();
+      }).schedule();
+    }, flying ? UNFOLD_MS + HOLD_MS - FADE_MS : 0);
+  }
+
+  landResult() {
+    const [index, item] = this.pending;
+    this.pending = undefined;
+    this.items.splice(index, 1, item);
+    item.shade = 0;
+    item.rise = RISE;
+    this.layout();
+    // The page rests at its end, but never with a card's header tucked under the time bar.
+    const offset = Math.min(this.maxOffset, item.y - this.headerHeight - 4);
+    this.setOffset(offset, true);
+    if (this.transition.active) {
+      const inset = (CARD_SQUARE - WIDGET_ICON) >> 1;
+      this.transition.retarget({x: item.x + inset, y: item.y - offset + inset, w: WIDGET_ICON, h: WIDGET_ICON});
+      this.landing = item;
+    }
+    // The result rises into place as it darkens in.
+    new Animation(REVEAL_MS, easeOut, progress => {
+      item.rise = RISE - Math.trunc(RISE * progress / NORMAL_MAX);
+      item.shade = progress < NORMAL_MAX / 3 ? 85 : progress < NORMAL_MAX * 2 / 3 ? 170 : 255;
+      this.invalidate();
+    }).schedule();
+    if (!this.transition.active) this.finishTurn();
+  }
+
+  // The turn is over. A cube that closed into a dot grows back into the microphone's ring.
+  finishTurn() {
+    this.landing = undefined;
+    if (!this.closedToDot) {
+      this.idle();
+      return;
+    }
+    this.phase = "regrowing";
+    this.regrowQ8 = WIDGET_DOT_RADIUS_Q8;
+    new Animation(REGROW_MS, easeOut, progress => {
+      this.regrowQ8 = WIDGET_DOT_RADIUS_Q8 +
+        Math.trunc((RING_RADIUS_Q8 - WIDGET_DOT_RADIUS_Q8) * progress / NORMAL_MAX);
+      this.invalidate();
+    }, () => this.idle()).schedule();
+  }
+
+  idle() {
+    this.phase = "idle";
+    this.invalidate();
+    if (this.visible) this.startPing();
+  }
+
+  // --- the microphone's ping --------------------------------------------------------
+
+  startPing() {
+    if (this.pingTimer !== undefined) return;
+    this.pingStep = 0;
+    this.pingTimer = setInterval(() => {
+      this.pingStep = (this.pingStep + 1) % PING_PERIOD;
+      const slot = this.slotTop - this.offset;
+      if (this.pingStep <= PING_STEPS && slot < HEIGHT) this.invalidate();
+    }, PING_STEP);
+  }
+
+  stopPing() {
+    if (this.pingTimer !== undefined) clearInterval(this.pingTimer);
+    this.pingTimer = undefined;
+    this.pingStep = PING_STEPS;
+  }
+
+  // --- scrolling ----------------------------------------------------------------------
 
   get maxOffset() {
     return Math.max(0, this.contentHeight - HEIGHT);
@@ -275,7 +379,7 @@ export default class Chat {
     const running = this.scrollAnimation?.scheduled;
     this.scrollAnimation?.unschedule();
     this.scrollAnimation = undefined;
-    if (!animated) {
+    if (!animated || !this.visible) {
       this.offsetChanged(target);
       return;
     }
@@ -289,36 +393,8 @@ export default class Chat {
   offsetChanged(offset) {
     if (offset === this.offset) return;
     this.offset = offset;
-    this.updateHomeMotion();
     if (this.barVisible) this.showBar();
     this.invalidate();
-  }
-
-  focusLatest(animated) {
-    if (!this.turns.length || !this.followLatest) return;
-    this.setOffset(this.maxOffset, animated);
-  }
-
-  // Where the page rests for the latest reply: its end, but never with a widget's top
-  // (its header) tucked under the time bar.
-  replyOffset() {
-    const offset = this.maxOffset;
-    const last = this.turns.length - 1;
-    if (last < 0 || !this.turns[last].widget) return offset;
-    return Math.min(offset, this.layouts[last].answer.y - this.headerHeight - 4);
-  }
-
-  focusReply(animated) {
-    if (!this.turns.length || !this.followLatest) return;
-    this.setOffset(this.replyOffset(), animated);
-  }
-
-  updateHomeMotion() {
-    const inView = this.visible && this.offset < this.homeHeight;
-    if (inView === this.homeInView) return;
-    this.homeInView = inView;
-    if (inView) this.home.show();
-    else this.home.hide();
   }
 
   // The position bar shows while the reader scrolls and slips away half a second after
@@ -335,179 +411,50 @@ export default class Chat {
   }
 
   // Up / Down step the page as the original history view did: one visible height less
-  // 48 pixels of overlap per press, animated, from wherever the reader is.
+  // 48 pixels of overlap per press, animated, from wherever the reader is. The page holds
+  // still while Index is listening, thinking or answering.
   scroll(down) {
-    if (!this.visible || this.noticeScreenActive) return;
+    if (!this.visible || this.busy) return;
     const page = HEIGHT - this.headerHeight - 48;
-    const offset = this.offset;
-    let target = offset + (down ? page : -page);
-    // The main screen is never left half exposed. Up stops at the top of the conversation
-    // first; the next Up goes all the way to the main screen. Down from the main screen
-    // lands on the first message.
-    if (down) {
-      if (target > 0 && target < this.homeHeight) target = this.homeHeight;
-    } else if (offset > this.homeHeight && target < this.homeHeight) {
-      target = this.homeHeight;
-    } else if (target < this.homeHeight) {
-      target = 0;
-    }
-    const clamped = this.clamp(target);
-    this.followLatest = clamped >= this.maxOffset - 4;
+    const target = this.clamp(this.offset + (down ? page : -page));
     this.showBar();
-    this.setOffset(clamped, true);
+    this.setOffset(target, true);
   }
 
-  // --- touch -------------------------------------------------------------------------
-
-  // A Touch sensor sample: [{x, y}] while the finger is down, [] when it lifts.
+  // A Touch sensor sample: [{x, y}] while the finger is down, [] when it lifts. A drag
+  // scrolls the page; a tap on the microphone asks.
   touch(points) {
     if (!this.visible || !points) return;
+    if (this.busy) {
+      this.touchOrigin = undefined;
+      return;
+    }
     const point = points[0];
-    if (point && !this.fingerDown) {
-      this.fingerDown = true;
-      this.lastTouch = point;
-      this.touchDown(point);
+    if (point && !this.touchOrigin) {
+      this.touchOrigin = point;
+      this.touchOffset = this.offset;
+      this.dragging = false;
+      this.setOffset(this.offset, false);
     } else if (point) {
-      this.lastTouch = point;
-      if (this.touching) this.touchMove(point, false);
-    } else if (this.fingerDown) {
-      this.fingerDown = false;
-      if (this.touching) this.touchMove(this.lastTouch, true);
-    }
-  }
-
-  touchDown(point) {
-    if (this.noticeScreenActive) return;
-    if (this.timeBarVisible && point.y < this.headerHeight) return;
-    this.touching = true;
-    this.touchOrigin = point;
-    this.touchOffset = this.offset;
-    this.touchAxis = undefined;
-    // The icon row, on screen, with a little slop above and below it.
-    const strip = this.home.carouselFrame;
-    const top = strip.y - this.touchOffset - CAROUSEL_TOUCH_SLOP;
-    this.touchOnCarousel = point.x >= strip.x && point.x < strip.x + strip.w &&
-      point.y >= top && point.y < top + strip.h + 2 * CAROUSEL_TOUCH_SLOP;
-    this.setOffset(this.touchOffset, false);
-    if (!this.touchOnCarousel) this.showBar();
-  }
-
-  // A drag is decided by its first few pixels: sideways from the icon row drags the ring;
-  // anything else scrolls the page.
-  touchMove(point, liftoff) {
-    const delta = point.y - this.touchOrigin.y;
-    const dx = point.x - this.touchOrigin.x;
-    if (this.touchAxis === undefined) {
-      if (this.touchOnCarousel && Math.abs(dx) > TOUCH_DECIDE && Math.abs(dx) > Math.abs(delta)) {
-        this.touchAxis = "sideways";
-        this.home.carousel.dragBegin();
-      } else if (Math.abs(delta) > (this.touchOnCarousel ? TOUCH_DECIDE : 3)) {
-        this.touchAxis = "vertical";
-        if (this.touchOnCarousel) this.showBar();
+      const delta = point.y - this.touchOrigin.y;
+      if (this.dragging || Math.abs(delta) > 3) {
+        if (!this.dragging) this.showBar();
+        this.dragging = true;
+        this.setOffset(this.touchOffset - delta, false);
       }
-    }
-    if (this.touchAxis === "sideways") {
-      this.home.carousel.dragTo(dx);
-      if (liftoff) {
-        this.touching = false;
-        this.home.carousel.dragEnd();
-      }
-      return;
-    }
-    if (this.touchAxis === "vertical") {
-      this.setOffset(this.touchOffset - delta, false);
-      this.followLatest = this.offset >= this.maxOffset - 4;
-    }
-    if (liftoff) {
-      this.touching = false;
-      if (this.offset > 0 && this.offset < this.homeHeight) {
-        // A drag that ends inside the main screen completes it: upward goes all the way
-        // to the top, downward to the first message.
-        const target = delta > 0 ? 0 : this.homeHeight;
-        this.followLatest = target >= this.maxOffset - 4;
-        this.setOffset(target, true);
-      }
+    } else if (this.touchOrigin) {
+      const slot = this.slotTop - this.offset, y = this.touchOrigin.y;
+      if (!this.dragging && y >= slot && y < slot + SLOT_HEIGHT) this.talk();
+      this.touchOrigin = undefined;
     }
   }
 
-  // --- thinking and replies ---------------------------------------------------------
+  // --- showing ------------------------------------------------------------------------
 
-  cancelTimer() {
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    this.timer = undefined;
-  }
-
-  startThinking() {
-    this.timer = undefined;
-    if (!this.visible) return;
-    if (!this.thinking.start(RING_RADIUS_Q8)) {
-      this.markReady();
-      return;
-    }
-    // A reply known to be a widget closes the cube into the peek's dot for its icon.
-    if (this.expectedWidget && this.expectedId === this.activeId) {
-      this.thinking.setCloseRadius(WIDGET_DOT_RADIUS_Q8);
-    }
-    this.timer = setTimeout(() => {
-      this.timer = undefined;
-      this.thinking.requestStop();
-    }, 800);
-  }
-
-  markReady() {
-    if (!this.visible) return;
-    this.cancelTimer();
-    this.invalidate();
-    const turn = this.find(this.activeId);
-    if (!turn || turn.state !== "thinking") return;
-    turn.state = "waiting";
-    this.ready(turn.id, turn.question);
-  }
-
-  // A reply rises `distance` pixels into place as it darkens in.
-  revealAnswer(distance, duration) {
-    this.cancelReveal();
-    if (!this.visible) return;
-    this.revealProgress = 0;
-    this.revealDistance = distance;
-    this.reveal = new Animation(duration, easeOut, progress => {
-      this.revealProgress = Math.trunc(progress * 1024 / NORMAL_MAX);
-      this.invalidate();
-    }, () => {
-      this.reveal = undefined;
-      this.revealProgress = 1024;
-      this.invalidate();
-    }).schedule();
-  }
-
-  cancelReveal() {
-    this.reveal?.unschedule();
-    this.reveal = undefined;
-    this.revealProgress = 1024;
-  }
-
-  // Like a notification's peek: the widget's icon unfolds where the cube closed, holds,
-  // then squashes and stretches into the card's header square as the card slides up.
-  startWidgetTransition(turn) {
-    if (!this.visible) return false;
-    // The page settles where the card will rest first; the transition covers it until then.
-    const offset = this.replyOffset();
-    this.setOffset(offset, false);
-    const card = this.layouts[this.layouts.length - 1].answer;
-    const inset = (CARD_SQUARE - WIDGET_ICON) >> 1;
-    return this.transition.start(WIDGETS[turn.widget].large, this.contentWidth >> 1, (HEIGHT >> 1) - 4,
-      {x: card.x + inset, y: card.y + inset - offset, w: WIDGET_ICON, h: WIDGET_ICON});
-  }
-
-  // A notice in Index's bubble: on the home screen's greeting before any conversation,
-  // otherwise briefly over the page.
+  // A notice in Index's bubble, briefly over the bottom of the page.
   showNotice(message) {
-    if (!this.hasHistory) {
-      this.home.setMessage(message);
-      return;
-    }
     if (this.noticeTimer !== undefined) clearTimeout(this.noticeTimer);
-    this.notice = message;
+    this.notice = measure(message, this.font, WIDTH - BUBBLE_INSET - 16).lines;
     this.noticeTimer = setTimeout(() => {
       this.noticeTimer = undefined;
       this.notice = "";
@@ -518,13 +465,10 @@ export default class Chat {
 
   refreshTime() {
     const now = new Date();
-    if (watch.hour12) {
-      const hour = now.getHours() % 12 || 12;
-      this.clock = hour + ":" + String(now.getMinutes()).padStart(2, "0") + " " +
-                   (now.getHours() < 12 ? "AM" : "PM");
-    } else {
-      this.clock = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
-    }
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    this.clock = watch.hour12
+      ? (now.getHours() % 12 || 12) + ":" + minutes + (now.getHours() < 12 ? " AM" : " PM")
+      : String(now.getHours()).padStart(2, "0") + ":" + minutes;
     const bearing = this.headerHeight === 28 ? 10 : 7;
     const descender = this.headerHeight === 28 ? 4 : 3;
     const inkHeight = this.clockFont.height - bearing + descender;
@@ -532,172 +476,163 @@ export default class Chat {
     this.invalidate();
   }
 
-  // The page shows while Index's window is up; dictation's system window hides it.
+  // The page shows while Index's window is up; dictation's system window hides it, and
+  // dictation starts only between turns.
   show() {
     this.refreshTime();
     this.visible = true;
-    this.updateHomeMotion();
-    const turn = this.find(this.activeId);
-    if (turn && turn.state === "thinking" && this.timer === undefined && !this.thinking.active) {
-      this.timer = setTimeout(() => this.startThinking(), 180);
-    }
+    if (!this.busy) this.startPing();
     this.invalidate();
   }
 
   hide() {
-    this.visible = this.touching = this.fingerDown = false;
+    this.visible = false;
+    this.touchOrigin = undefined;
     if (this.noticeTimer !== undefined) clearTimeout(this.noticeTimer);
     this.noticeTimer = undefined;
     this.notice = "";
-    this.cancelTimer();
-    this.cancelReveal();
-    if (this.barTimer !== undefined) clearTimeout(this.barTimer);
-    this.barTimer = undefined;
-    this.barVisible = false;
-    this.thinking.cancel();
-    this.transition.cancel();
-    this.updateHomeMotion();
+    this.stopPing();
   }
 
-  // --- drawing -----------------------------------------------------------------------
-
-  get noticeScreenActive() {
-    return this.thinking.active || (this.transition.active && !this.transition.isFlying);
-  }
-
-  get timeBarVisible() {
-    return this.offset > this.clockBottom;
-  }
+  // --- drawing --------------------------------------------------------------------------
 
   draw() {
-    if (this.noticeScreenActive) {
-      this.drawNoticeScreen();
-      return;
-    }
     render.fillRectangle(WHITE, 0, 0, WIDTH, HEIGHT);
     const offset = this.offset;
-    if (offset < this.homeHeight) this.home.draw(-offset);
-    this.turns.forEach((turn, index) => {
-      const position = this.layouts[index];
-      if (position.bottom + 4 < offset || position.question.y > offset + HEIGHT) return;
-      const question = position.question;
-      this.drawBubble({...question, y: question.y - offset}, turn.question, true, 255);
-      if (!position.answer.h) return;
-      const answer = {...position.answer, y: position.answer.y - offset};
-      let shade = 255;
-      if (turn.id === this.activeId && this.reveal) {
-        answer.y += Math.trunc(this.revealDistance * (1024 - this.revealProgress) / 1024);
-        shade = this.revealProgress < 340 ? 85 : this.revealProgress < 680 ? 170 : 255;
-      }
-      if (turn.widget) {
-        // While the transition's icon is travelling, the header square waits for it.
-        const landing = turn.id === this.activeId && this.transition.active;
-        this.drawCard(answer, turn, shade, !landing);
-      } else {
-        this.drawBubble(answer, turn.answer, false, shade);
-      }
-    });
-    if (this.timeBarVisible) {
-      this.drawTimeBar();
-      if (this.barVisible) this.drawScrollBar();
+    for (const item of this.items) {
+      const y = item.y - offset + item.rise;
+      if (y + item.h > 0 && y < HEIGHT) this.drawItem(item, y);
     }
-    // The icon flies over the page as the reply slides up beneath it.
-    if (this.transition.isFlying) this.transition.draw();
+    this.drawSlot(this.slotTop - offset);
+    // The time bar, and the position bar while the reader scrolls.
+    render.fillRectangle(WHITE, 0, 0, WIDTH, this.headerHeight);
+    drawText(this.clock, this.clockFont, ink(255), (WIDTH - textWidth(this.clock, this.clockFont)) >> 1, this.clockTop);
+    render.drawLine(8, this.headerHeight - 1, WIDTH - 8, this.headerHeight - 1, DARK_GRAY, 1);
+    if (this.barVisible) this.drawScrollBar();
+    // The widget's icon unfolds over the page, then flies into its card's header.
+    if (this.transition.active) this.transition.draw();
     if (this.notice) {
-      const height = this.bubbleHeight(this.notice);
-      this.drawBubble({x: MARGIN, y: HEIGHT - height - MARGIN, w: this.contentWidth - BUBBLE_INSET, h: height},
-                      this.notice, false, 255);
+      const h = this.textHeight(this.notice) + 18;
+      this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255);
     }
   }
 
-  drawBubble(rect, text, user, shade) {
-    if (!text || !shade) return;
-    if (user) {
-      // The user's questions are solid pills with no tail, so they never read as Index.
-      render.drawRoundRect(rect.x, rect.y, rect.w, rect.h, VIVID_CERULEAN, PILL_RADIUS, GCORNERS_ALL);
+  drawItem(item, y) {
+    const {x, w, h, shade} = item;
+    if (item.type === "day") {
+      const face = font("Gothic-Bold", 18);
+      drawText(item.text, face, DARK_GRAY, (WIDTH - textWidth(item.text, face)) >> 1,
+               y + ((DAY_HEIGHT - DAY_CAP) >> 1) - DAY_CAP_TOP);
+    } else if (item.type === "voice") {
+      render.drawRoundRect(x, y, w, h, VIVID_CERULEAN, PILL_RADIUS, GCORNERS_ALL);
+      this.waveform?.draw(x + VOICE_PADDING, y + (h >> 1), WHITE);
+    } else if (item.type === "query") {
+      // The user's words: a solid pill with no tail, so it never reads as Index. Words
+      // appear one at a time as they are transcribed; as the result comes in it fades away.
+      const step = shade >= 255 ? 3 : Math.trunc(shade * 3 / 255);
+      if (!step) return;
+      render.drawRoundRect(x, y, w, h, FADE_BLUES[step - 1], PILL_RADIUS, GCORNERS_ALL);
+      let remaining = step === 3 ? item.shown : 0;
+      for (let index = 0; remaining > 0 && index < item.lines.length; index++) {
+        const words = item.lines[index].split(" ");
+        drawText(words.slice(0, remaining).join(" "), this.font, WHITE, x + 8,
+                 y + 9 - this.textTop + index * this.font.height);
+        remaining -= words.length;
+      }
+    } else if (item.widget) {
+      this.drawCard(item, y);
     } else {
-      // Index's replies keep the thin grey outline of the home greeting, with its tail.
-      const border = ink(Math.min(shade, 170));
-      render.drawRoundRect(rect.x, rect.y, rect.w, rect.h, WHITE, 7, GCORNERS_ALL);
-      resetPen();
-      render.frameRoundRect(rect.x, rect.y, rect.w, rect.h, border, 7);
-      this.tail.process(command => command.stroke = border);
-      render.drawDCI(this.tail, rect.x - 5, rect.y + rect.h - 1 - 9);
-      render.drawLine(rect.x + 7, rect.y, rect.x + rect.w - 8, rect.y, ink(shade), 1);
+      this.drawBubble(x, y, w, h, item.lines, shade);
     }
-    drawWrapped(text, this.font, user ? WHITE : ink(shade), rect.x + 8, rect.y + 9 - this.textTop,
-                rect.w - 16);
   }
 
-  // A card is Index's reply frame without the tail, its header band and the divider
-  // closing it off; the weather card's body is the report, the others' the reply text.
-  drawCard(rect, turn, shade, showIcon) {
-    const widget = WIDGETS[turn.widget];
-    render.drawRoundRect(rect.x, rect.y, rect.w, rect.h, WHITE, CARD_RADIUS, GCORNERS_ALL);
+  // Index's reply bubble: the thin grey outline of the home greeting, with its tail.
+  drawBubble(x, y, w, h, lines, shade) {
+    if (!shade) return;
+    const border = ink(Math.min(shade, 170));
+    render.drawRoundRect(x, y, w, h, WHITE, 7, GCORNERS_ALL);
     resetPen();
-    render.frameRoundRect(rect.x, rect.y, rect.w, rect.h, ink(Math.min(shade, 170)), CARD_RADIUS);
-    render.drawLine(rect.x + 7, rect.y, rect.x + rect.w - 8, rect.y, ink(shade), 1);
+    render.frameRoundRect(x, y, w, h, border, 7);
+    this.tail.process(command => command.stroke = border);
+    render.drawDCI(this.tail, x - 5, y + h - 1 - 9);
+    render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
+    this.drawLines(lines, ink(shade), x + 8, y + 9 - this.textTop);
+  }
+
+  drawLines(lines, color, x, top) {
+    for (let index = 0; index < lines.length; index++) {
+      drawText(lines[index], this.font, color, x, top + index * this.font.height);
+    }
+  }
+
+  // A card is Index's reply frame without the tail, its header band and the divider closing
+  // it off; the body is the reply's text or the widget's own content.
+  drawCard(item, y) {
+    const {x, w, h, shade} = item;
+    if (!shade) return;
+    const [label, icon, , body, source] = WIDGETS[item.widget];
+    const quiet = ink(Math.min(shade, 170));
+    render.drawRoundRect(x, y, w, h, WHITE, CARD_RADIUS, GCORNERS_ALL);
+    resetPen();
+    render.frameRoundRect(x, y, w, h, quiet, CARD_RADIUS);
+    render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
+    // While the icon is in flight, the header square waits for it.
     if (shade === 255) {
-      render.drawRoundRect(rect.x, rect.y, rect.w, CARD_SQUARE, VIVID_CERULEAN, CARD_RADIUS, GCORNERS_TOP);
-      if (showIcon) {
-        const x = rect.x + ((CARD_SQUARE - WIDGET_ICON) >> 1), y = rect.y + ((CARD_SQUARE - WIDGET_ICON) >> 1);
-        if (turn.widget === "weather") {
-          render.drawBitmap(new Poco.PebbleBitmap(assets.WEATHER_ICON_TINY), x, y);
-        } else {
-          render.drawDCI(new Poco.PebbleDrawCommandImage(widget.icon), x, y);
-        }
+      render.drawRoundRect(x, y, w, CARD_SQUARE, VIVID_CERULEAN, CARD_RADIUS, GCORNERS_TOP);
+      if (item !== this.landing) {
+        const inset = (CARD_SQUARE - WIDGET_ICON) >> 1;
+        if (icon) render.drawDCI(new Poco.PebbleDrawCommandImage(icon), x + inset, y + inset);
+        else render.drawBitmap(new Poco.PebbleBitmap(assets.WEATHER_ICON_TINY), x + inset, y + inset);
       }
     }
-    // Until fully revealed the label stays ink-grey; then it is white on the band.
-    const label = widget.label;
-    drawText(label, this.headerFont, shade === 255 ? WHITE : ink(shade),
-             rect.x + Math.trunc((rect.w - textWidth(label, this.headerFont)) / 2),
-             rect.y + Math.trunc((CARD_SQUARE - this.headerCap) / 2) - this.headerCapTop);
-    const divider = rect.y + CARD_HEADER - 1;
-    render.drawLine(rect.x, divider, rect.x + rect.w - 1, divider, ink(Math.min(shade, 170)), 1);
-    if (turn.widget === "weather") {
-      drawWeather(WEATHER_DEMO, {x: rect.x, y: divider + 1, w: rect.w}, shade);
+    // The label is centred across the card, or in the band beside the icon square when it
+    // would reach the square; until fully revealed it stays ink-grey, then white on the band.
+    const room = w - CARD_SQUARE - 6;
+    const [face, capTop, cap] = this.headers.find(([f]) => textWidth(label, f) <= room) ?? this.headers.at(-1);
+    const width = textWidth(label, face);
+    let left = x + ((w - width) >> 1);
+    if (left < x + CARD_SQUARE + 2) left = x + CARD_SQUARE + ((room - width) >> 1);
+    drawText(label, face, shade === 255 ? WHITE : ink(shade), left, y + ((CARD_SQUARE - cap) >> 1) - capTop);
+    const divider = y + CARD_HEADER - 1;
+    render.drawLine(x, divider, x + w - 1, divider, quiet, 1);
+    if (body === "weather") {
+      drawWeather(WEATHER_DEMO, {x, y: divider + 1, w}, shade);
+    } else if (body) {
+      CARDS[body].draw({x, y: divider + 1, w}, shade);
     } else {
-      drawWrapped(turn.answer, this.font, ink(shade), rect.x + CARD_TEXT_INSET,
-                  divider + 1 + CARD_TEXT_PADDING - this.textTop, rect.w - 2 * CARD_TEXT_INSET);
+      const top = divider + 1 + CARD_TEXT_PADDING;
+      this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop);
+      if (source) {
+        drawText(source, font("Gothic-Regular", 14), quiet, x + CARD_TEXT_INSET,
+                 top + this.textHeight(item.lines) + SOURCE_GAP - SOURCE_CAP_TOP);
+      }
     }
   }
 
-  drawTimeBar() {
-    render.fillRectangle(WHITE, 0, 0, this.contentWidth, this.headerHeight);
-    drawText(this.clock, this.clockFont, ink(255),
-             Math.trunc((this.contentWidth - textWidth(this.clock, this.clockFont)) / 2), this.clockTop);
-    render.drawLine(8, this.headerHeight - 1, this.contentWidth - 8, this.headerHeight - 1, DARK_GRAY, 1);
+  // The voice input: the microphone in its ring (pinging while it waits, swelling with the
+  // voice while it listens), or the thinking cube that grows out of the ring.
+  drawSlot(top) {
+    if (top >= HEIGHT) return;
+    const cx = WIDTH >> 1, cy = top + SLOT_CENTRE;
+    if (this.thinking.active) {
+      this.thinking.draw(cx, cy);
+    } else if (this.phase === "regrowing") {
+      drawRing(cx, cy, this.regrowQ8, this.regrowQ8);
+    } else if (this.phase !== "answering") {
+      const level = this.waveform ? this.waveform.level >> 6 : 0;
+      drawMic(cx, cy, RING + level, this.pingStep < PING_STEPS ? (this.pingStep << 10) / PING_STEPS | 0 : undefined);
+    }
   }
 
   // The original history view's position bar: a thin dark thumb down the left edge,
-  // sized and placed by how much of the conversation is on screen.
+  // sized and placed by how much of the page is on screen.
   drawScrollBar() {
     const visible = HEIGHT - this.headerHeight;
-    const conversation = this.contentHeight - this.homeHeight;
-    if (conversation <= visible) return;
+    const page = this.contentHeight - this.headerHeight;
+    if (page <= visible) return;
     const track = visible - 20;
-    const height = Math.max(12, Math.trunc(track * visible / conversation));
-    const offset = Math.max(0, this.offset - this.homeHeight);
-    const top = this.headerHeight + 10 + Math.trunc(offset * (track - height) / (conversation - visible));
+    const height = Math.max(12, Math.trunc(track * visible / page));
+    const top = this.headerHeight + 10 + Math.trunc(this.offset * (track - height) / this.maxOffset);
     render.drawRoundRect(2, top, 2, height, DARK_GRAY, 1, GCORNERS_ALL);
-  }
-
-  // Thinking gets a screen of its own: the time bar, Index's bubble at the bottom saying
-  // what is happening, and the animation at the screen's centre (the cube's art sits 4px
-  // below its canvas centre). A widget's icon unfolding out of the closed cube has the
-  // screen to itself.
-  drawNoticeScreen() {
-    render.fillRectangle(WHITE, 0, 0, WIDTH, HEIGHT);
-    this.drawTimeBar();
-    if (this.transition.active) {
-      this.transition.draw();
-      return;
-    }
-    const text = "Thinking...";
-    const height = this.bubbleHeight(text);
-    this.drawBubble({x: MARGIN, y: HEIGHT - height - MARGIN, w: this.contentWidth - BUBBLE_INSET, h: height},
-                    text, false, 255);
-    this.thinking.draw(this.contentWidth >> 1, (HEIGHT >> 1) - 4);
   }
 }
