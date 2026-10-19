@@ -28,6 +28,8 @@ if [ "${INDEX_INSTRUMENT:-0}" = 1 ]; then
   sed -i '' 's/^    \.fxBuildFFI = fxBuildFFI,$/    .flags = kModdableCreationFlagLogInstrumentation, .fxBuildFFI = fxBuildFFI,/' \
     "$BUILD_DIR/src/c/mdbl.c"
   grep -q kModdableCreationFlagLogInstrumentation "$BUILD_DIR/src/c/mdbl.c" || { echo "INSTRUMENT not applied" >&2; exit 1; }
+  sed -i '' 's/^const PROFILE = false;$/const PROFILE = true;/' "$BUILD_DIR/src/embeddedjs/main.js"
+  grep -q "^const PROFILE = true;" "$BUILD_DIR/src/embeddedjs/main.js" || { echo "PROFILE not applied" >&2; exit 1; }
 fi
 if [ "${INDEX_PLAYTEST:-0}" = 1 ]; then
   python3 - "$BUILD_DIR/src/embeddedjs/main.js" <<'PY'

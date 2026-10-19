@@ -43,6 +43,37 @@ function armDraw() {
   }, Math.max(0, lastDrawEnd + FRAME_GAP_MS - now()));
 }
 
+// Instrumented builds (INDEX_INSTRUMENT=1) keep, per phase of a turn, how many frames were
+// drawn, how long they took, and the longest wait between frames, and log it all once the
+// turn is over (logging during it would itself delay frames), to find stalls on the watch.
+const PROFILE = false;
+const profile = PROFILE ? {} : undefined;
+let profiling = false;
+
+function record(key, gap, draw) {
+  if (!chat.busy) {
+    if (!profiling) return;
+    profiling = false;
+    for (const name in profile) {
+      const s = profile[name];
+      trace(`${name}: ${s.frames} frames, draw avg ${Math.trunc(s.sum / s.frames)} max ${s.max}, ` +
+            `gap max ${s.gap}, late ${s.late}\n`);
+      delete profile[name];
+    }
+    return;
+  }
+  const s = profile[key] ??= {frames: 0, sum: 0, max: 0, gap: 0, late: 0};
+  s.frames++;
+  s.sum += draw;
+  if (draw > s.max) s.max = draw;
+  // The first frame of a turn follows the idle wait, which is no gap.
+  if (profiling) {
+    if (gap > s.gap) s.gap = gap;
+    if (gap > 50) s.late++;
+  }
+  profiling = true;
+}
+
 function draw() {
   if (!drawPending) return;
   // While the system's dictation window is up, Index must not draw over it.
@@ -57,8 +88,11 @@ function draw() {
   }
   drawPending = false;
   lastDraw = now();
+  const kind = chat.dirty === true ? "full" : "band";
   chat.render();
-  lastDrawEnd = now();
+  const end = now();
+  if (PROFILE) record(chat.phase + " " + kind, lastDraw - lastDrawEnd, end - lastDraw);
+  lastDrawEnd = end;
 }
 
 onFrame(draw);

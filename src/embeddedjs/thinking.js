@@ -5,7 +5,7 @@ import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {THINKING_FIRST} from "assets";
 import {Animation, NORMAL_MAX, linear} from "motion";
-import {render} from "theme";
+import {render, WHITE, BLACK} from "theme";
 
 export const RING_RADIUS_Q8 = 20 * 256;   // the home ring's resting radius (1/256 px)
 const SQUARE_RADIUS_Q8 = 23 * 256, POP_RADIUS_Q8 = 28 * 256;
@@ -21,57 +21,28 @@ function interpolate(start, end, elapsed) {
   return start + Math.trunc((end - start) * eased / 1024);
 }
 
-// The ring and its morph, antialiased by coverage into four levels (clear, light grey, dark
-// grey, black) exactly as the native app drew its 8-bit ring, and drawn as horizontal
-// runs. The shape is symmetric, so one quadrant of shades is worked out per frame.
-const HALF = POP_RADIUS_Q8 / 256 + 2, QUADRANT = HALF + 1;
-let quadrant, shades;
-
-function ringShade(dx, dy, radiusQ8, cornerQ8) {
-  const straight = radiusQ8 - cornerQ8;
-  let distance;
-  if (straight) {
-    let horizontal = dx * 256 - straight;
-    let vertical = dy * 256 - straight;
-    const inside = Math.max(horizontal, vertical);
-    if (horizontal < 0) horizontal = 0;
-    if (vertical < 0) vertical = 0;
-    distance = Math.floor(Math.sqrt(horizontal * horizontal + vertical * vertical));
-    if (inside < 0) distance += inside;
-  } else {
-    distance = Math.floor(Math.sqrt((dx * dx + dy * dy) * 65536));
-  }
-  let coverage = cornerQ8 + 128 - distance;
-  if (radiusQ8 >= 3 * 256) coverage = Math.min(coverage, distance - (cornerQ8 - 3 * 256) + 128);
-  coverage = Math.max(0, Math.min(256, coverage));
-  return (coverage * 3 + 128) >> 8;
-}
+// The ring and its morph: a rounded square (a circle while its corner radius is its whole
+// radius) with a 3px outline, as the native app's ring, drawn as the firmware's own shape
+// fills with the inside cleared. Working the outline out pixel by pixel in JavaScript, as
+// before, took over 100ms a frame on the watch.
+const STROKE = 3, GCORNERS_ALL = 15;
 
 export function drawRing(cx, cy, radiusQ8, cornerQ8) {
   if (radiusQ8 > POP_RADIUS_Q8) return;
-  quadrant ??= new Uint8Array(QUADRANT * QUADRANT);
-  shades ??= [0, render.makeColor(170, 170, 170), render.makeColor(85, 85, 85), render.makeColor(0, 0, 0)];
-  // Only as far out as the shape reaches: a small shape is far cheaper to work out.
-  const half = Math.min(HALF, (radiusQ8 >> 8) + 2);
-  for (let dy = 0; dy <= half; dy++) {
-    for (let dx = 0; dx <= half; dx++) quadrant[dy * QUADRANT + dx] = ringShade(dx, dy, radiusQ8, cornerQ8);
+  const radius = (radiusQ8 + 128) >> 8, corner = Math.min(radius, (cornerQ8 + 128) >> 8);
+  if (radius <= 0) return;
+  const inner = radius - STROKE;
+  if (corner >= radius) {
+    // A circle: the firmware's radial fill is antialiased.
+    render.drawCircle(BLACK, cx, cy, radius);
+    if (inner > 0) render.drawCircle(WHITE, cx, cy, inner);
+    return;
   }
-  for (let row = -half; row <= half; row++) {
-    const line = Math.abs(row) * QUADRANT;
-    let start = -half, shade = quadrant[line + half];
-    for (let column = -half + 1; column <= half + 1; column++) {
-      const next = column > half ? -1 : quadrant[line + Math.abs(column)];
-      if (next === shade) continue;
-      if (shade > 0) render.fillRectangle(shades[shade], cx + start, cy + row, column - start, 1);
-      start = column;
-      shade = next;
-    }
+  render.drawRoundRect(cx - radius, cy - radius, 2 * radius, 2 * radius, BLACK, corner, GCORNERS_ALL);
+  if (inner > 0) {
+    render.drawRoundRect(cx - inner, cy - inner, 2 * inner, 2 * inner, WHITE,
+                         Math.max(0, corner - STROKE), GCORNERS_ALL);
   }
-}
-
-// Frees the ring's working memory once the thinking screen is gone.
-function releaseRing() {
-  quadrant = undefined;
 }
 
 export default class Thinking {
@@ -130,7 +101,6 @@ export default class Thinking {
     this.animation = undefined;
     this.active = false;
     this.frame = undefined;
-    releaseRing();
   }
 
   cancel() {
