@@ -12,7 +12,8 @@ import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
 import * as assets from "assets";
-import {Animation, NORMAL_MAX, easeInOut, easeOut, now} from "motion";
+import {Animation, NORMAL_MAX, linear, easeInOut, easeOut, now, moook, MOOOK_MS, segmented,
+        fraction} from "motion";
 import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
         ink, font, drawText, textWidth, measure, resetPen, art} from "theme";
 import Thinking from "thinking";
@@ -63,6 +64,10 @@ const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
 const WAVE_STEP = 70, THINK_AFTER = 300, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
+// On Up and Down, a card's icon travels as Timeline's pin icons do: its trailing edge
+// sets off a sixth of the way through (Timeline's point duration), so the icon stretches
+// along the travel and squashes into place.
+const STRETCH_POINT = fraction(5, 6);
 const PREPARE_MS = 250;   // into a recording (and again later), text is measured
 
 // Each widget: its icon for the cutout and the large one the peek unfolds, and its body
@@ -459,14 +464,29 @@ export default class Chat {
   }
 
   // Up / Down step the page as the original history view did: one visible height less
-  // 48 pixels of overlap per press, animated, from wherever the reader is. The page holds
-  // still while Index is listening, thinking or answering.
+  // 48 pixels of overlap per press, from wherever the reader is. The page holds still
+  // while Index is listening, thinking or answering. The step moves as Timeline's pins
+  // do: the moook curve (a wind-up, a jump, an overshoot and a settle), with each card's
+  // icon stretching along the travel and squashing as it lands.
   scroll(down) {
     if (!this.visible || this.busy) return;
     const page = HEIGHT - this.headerHeight - 48;
-    const target = this.clamp(this.offset + (down ? page : -page));
+    const from = this.stretch ? this.stretch.target : this.offset;
+    const target = this.clamp(from + (down ? page : -page));
+    if (target === from) return;
     this.showBar();
-    this.setOffset(target, true);
+    this.scrollAnimation?.unschedule();
+    this.scrollTarget = target;
+    const stretch = this.stretch = {from, target, progress: 0, frames: 0};
+    this.scrollAnimation = new Animation(MOOOK_MS, linear, progress => {
+      stretch.progress = progress;
+      // The icons' stretched copies are native memory: collected every third frame.
+      if (++stretch.frames % 3 === 0) Debug.gc();
+      this.offsetChanged(moook(progress, from, target));
+    }, () => {
+      if (this.stretch === stretch) this.stretch = undefined;
+      this.invalidate();
+    }).schedule();
   }
 
   // A Touch sensor sample: [{x, y}] while the finger is down, [] when it lifts. A drag
@@ -703,7 +723,26 @@ export default class Chat {
     render.fillRectangle(WHITE, x, edge - CUT_HEIGHT + 1, CUT_WIDTH, CUT_HEIGHT);
     // The icon, once the card is fully revealed and the flying icon has landed.
     const iconTop = y + this.iconTop(item);
-    if (shade === 255 && item !== this.landing) render.drawDCI(art(icon), x, iconTop);
+    if (shade === 255 && item !== this.landing) {
+      const stretch = this.stretch;
+      if (stretch && stretch.progress < NORMAL_MAX) {
+        // Mid-scroll: the icon's edge facing the travel leads and the other follows, so
+        // the icon is stretched over the jump and squashed as the overshoot turns back.
+        const rest = item.y + this.iconTop(item);
+        const startY = rest - stretch.from, endY = rest - stretch.target;
+        const first = segmented(stretch.progress, 0, 2, STRETCH_POINT);
+        const second = segmented(stretch.progress, 1, 2, STRETCH_POINT);
+        const up = endY < startY;
+        const top = moook(up ? first : second, startY, endY);
+        const bottom = moook(up ? second : first, startY + WIDGET_ICON, endY + WIDGET_ICON);
+        const height = Math.max(1, bottom - top);
+        const copy = art(icon).clone();
+        copy.scale(1, height / WIDGET_ICON);
+        render.drawDCI(copy, x, top);
+      } else {
+        render.drawDCI(art(icon), x, iconTop);
+      }
+    }
     if (body === "weather") {
       drawWeather(WEATHER_DEMO, {x, y: y + 1, w}, shade);
     } else if (body) {

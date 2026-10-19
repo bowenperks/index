@@ -50,6 +50,31 @@ export function segmented(progress, index, count, fraction) {
 
 export const fraction = (numerator, denominator) => Math.trunc(numerator * 65536 / denominator);
 
+// Pebble's "moook" curve (applib/ui/animation_interpolate.c, interpolate_moook_soft), the
+// one Timeline moves its pins with on Up and Down: a wind-up of 0, 1 and 20 pixels towards
+// the destination, `mid` linear frames, then an overshoot of 4, 2, 1 and 0 pixels past it.
+// Each entry is one 33ms frame; the value at `progress` (0..NORMAL_MAX) between `from`
+// and `to`.
+const MOOOK_IN = [0, 1, 20], MOOOK_OUT = [4, 2, 1, 0], MOOOK_MID = 3;
+export const MOOOK_MS = (MOOOK_IN.length + MOOOK_MID + MOOOK_OUT.length) * FRAME_MS;
+
+export function moook(progress, from, to) {
+  const direction = from === to ? 0 : from < to ? 1 : -1;
+  if (!direction || progress >= NORMAL_MAX) return to;
+  const total = MOOOK_IN.length + MOOOK_MID + MOOOK_OUT.length;
+  const frame = Math.max(0, Math.min(total - 1,
+    Math.trunc((progress * total + Math.trunc(NORMAL_MAX / (2 * total))) / NORMAL_MAX)));
+  if (frame < MOOOK_IN.length) return from + direction * MOOOK_IN[frame];
+  if (frame < MOOOK_IN.length + MOOOK_MID) {
+    const shifted = progress - Math.trunc(MOOOK_IN.length * NORMAL_MAX / total);
+    const midProgress = Math.trunc(total * shifted / MOOOK_MID);
+    const start = from + direction * MOOOK_IN[MOOOK_IN.length - 1];
+    const end = to + direction * MOOOK_OUT[0];
+    return start + Math.trunc(midProgress * (end - start) / NORMAL_MAX);
+  }
+  return to + direction * MOOOK_OUT[frame - MOOOK_IN.length - MOOOK_MID];
+}
+
 // Milliseconds on the watch's monotonic tick counter. Date.now() is not usable for motion:
 // it can read a second ahead, then back, as the second rolls over.
 export const now = () => Time.ticks;
