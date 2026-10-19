@@ -23,24 +23,42 @@ let dictating = false;
 
 // Animation updates paint on their existing frame tick; other changes paint on the next
 // tick of the app's one timer (timers.js), never on a native timer of their own.
-let lastDraw = 0;
+//
+// After each frame the firmware copies the app's frame buffer to the display on its own
+// task, and when the display is still busy it defers that copy to a later moment. A frame
+// drawn into the buffer too soon can then be copied half done: a white flash, icons gone
+// for a moment. So a frame is never started until the previous one has had FRAME_GAP_MS
+// to reach the display (its copy takes well under that).
+const FRAME_GAP_MS = 24;
+let lastDraw = 0, lastDrawEnd = -FRAME_GAP_MS;
 function invalidate() {
   drawPending = true;
-  if (!isAnimating() && drawTimer === undefined) {
-    drawTimer = setTimeout(() => {
-      drawTimer = undefined;
-      draw();
-    }, 0);
-  }
+  if (!isAnimating() && drawTimer === undefined) armDraw();
+}
+
+function armDraw() {
+  drawTimer = setTimeout(() => {
+    drawTimer = undefined;
+    draw();
+  }, Math.max(0, lastDrawEnd + FRAME_GAP_MS - now()));
 }
 
 function draw() {
   if (!drawPending) return;
-  drawPending = false;
   // While the system's dictation window is up, Index must not draw over it.
-  if (dictating || !chat) return;
+  if (dictating || !chat) {
+    drawPending = false;
+    return;
+  }
+  if (now() - lastDrawEnd < FRAME_GAP_MS) {
+    // Too soon after the last frame: the next animation tick, or a timer, draws it.
+    if (!isAnimating() && drawTimer === undefined) armDraw();
+    return;
+  }
+  drawPending = false;
   lastDraw = now();
   chat.render();
+  lastDrawEnd = now();
 }
 
 onFrame(draw);

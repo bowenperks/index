@@ -553,13 +553,23 @@ export default class Chat {
 
   // Draws the screen rows from `top` to `bottom`: the whole screen, or a band of it.
   draw(top, bottom) {
-    render.fillRectangle(WHITE, 0, top, WIDTH, bottom - top);
     const offset = this.offset, items = this.items;
-    // An indexed loop: for...of makes an iterator, every frame.
+    // The page is cleared strip by strip, each just before what goes on it, never all at
+    // once: the firmware can copy the frame buffer to the display mid-draw (see main.js),
+    // and this way it catches at most one item half drawn, not a white screen. An indexed
+    // loop: for...of makes an iterator, every frame.
+    let cleared = top;
     for (let index = 0; index < items.length; index++) {
       const item = items[index], y = item.y - offset + item.rise;
-      if (y + item.h > top && y < bottom) this.drawItem(item, y);
+      if (y + item.h <= top || y >= bottom) continue;
+      const end = Math.min(y + item.h, bottom);
+      if (end > cleared) {
+        render.fillRectangle(WHITE, 0, cleared, WIDTH, end - cleared);
+        cleared = end;
+      }
+      this.drawItem(item, y);
     }
+    if (bottom > cleared) render.fillRectangle(WHITE, 0, cleared, WIDTH, bottom - cleared);
     this.drawSlot(this.slotTop - offset);
     // The result's icon unfolding and holding, in the voice input's band.
     if (this.transition.active && !this.transition.isFlying) this.transition.draw();
