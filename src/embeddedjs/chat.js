@@ -42,11 +42,11 @@ const WIDGET_ICON = 36, WIDGET_DOT_RADIUS_Q8 = 4 * 256;   // the notification pe
 const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
 const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
-// The voice input's slot at the end of the page: the microphone's centre sits 36px down,
-// so the thinking cube's art (31px above its centre, up to 42 below as it turns) fits in
-// it. Going to think, the microphone shrinks to a 15% dot, and the cube grows out of a
-// 3px dot.
-const SLOT_HEIGHT = 80, SLOT_CENTRE = 36, MIC_DOT_SCALE = 0.15, MIC_DOT_Q8 = 3 * 256;
+// The voice input's slot at the end of the page: the 80px microphone's centre sits 44px
+// down (its art 2-78 of its canvas), and the thinking cube's art (31px above its centre,
+// up to 42 below as it turns) fits too. Going to think, the microphone shrinks to a 5px
+// dot, and the cube grows out of a 3px dot.
+const SLOT_HEIGHT = 88, SLOT_CENTRE = 44, MIC_DOT_SCALE = 0.06, MIC_DOT_Q8 = 3 * 256;
 // While Index thinks, the cube sits at the bottom left (its art spans 35px either side of
 // its centre at most). The typing bubble fills the rest of the row, from beside the cube
 // to the user's bubbles' margin, and is the cube's height: its art (tools/build_assets.py)
@@ -60,8 +60,7 @@ const SLIDE_MS = 220, TYPING_FADE_MS = 200, TYPING_STEP_MS = 220;
 const VOICE_PADDING = 12, VOICE_HEIGHT = 36;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
-// Timings, in milliseconds. The ping goes out over 15 steps of 80ms, every 26 steps.
-const PING_STEP = 80, PING_STEPS = 15, PING_PERIOD = 26;
+// Timings, in milliseconds.
 const WAVE_STEP = 70, THINK_AFTER = 300, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
 
@@ -92,7 +91,6 @@ export default class Chat {
     this.phase = "idle";
     this.offset = 0;
     this.notice = "";
-    this.pingStep = PING_STEPS;
     const extraLarge = CONTENT_SIZE === EXTRA_LARGE;
     this.headerHeight = extraLarge ? 28 : 20;
     this.clockFont = font("Gothic-Regular", extraLarge ? 24 : 18);
@@ -248,7 +246,6 @@ export default class Chat {
 
   beginTurn(question) {
     this.question = question;
-    this.stopPing();
     this.trim();
   }
 
@@ -362,25 +359,6 @@ export default class Chat {
     this.typingArt = undefined;
     Debug.gc();
     this.invalidate();
-    if (this.visible) this.startPing();
-  }
-
-  // --- the microphone's ping --------------------------------------------------------
-
-  startPing() {
-    if (this.pingTimer !== undefined) return;
-    this.pingStep = 0;
-    this.pingTimer = setInterval(() => {
-      this.pingStep = (this.pingStep + 1) % PING_PERIOD;
-      const slot = this.slotTop - this.offset;
-      if (this.pingStep <= PING_STEPS && slot < HEIGHT) this.invalidate();
-    }, PING_STEP);
-  }
-
-  stopPing() {
-    if (this.pingTimer !== undefined) clearInterval(this.pingTimer);
-    this.pingTimer = undefined;
-    this.pingStep = PING_STEPS;
   }
 
   // --- scrolling ----------------------------------------------------------------------
@@ -500,7 +478,6 @@ export default class Chat {
   show() {
     this.refreshTime();
     this.visible = true;
-    if (!this.busy) this.startPing();
     this.invalidate();
   }
 
@@ -510,7 +487,6 @@ export default class Chat {
     if (this.noticeTimer !== undefined) clearTimeout(this.noticeTimer);
     this.noticeTimer = undefined;
     this.notice = "";
-    this.stopPing();
   }
 
   // --- drawing --------------------------------------------------------------------------
@@ -569,12 +545,17 @@ export default class Chat {
     this.tail.process(command => command.stroke = border);
     render.drawDCI(this.tail, x - 5, y + h - 1 - 9);
     render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
-    this.drawLines(lines, ink(shade), x + 8, y + 9 - this.textTop);
+    this.drawLines(lines, ink(shade), x + 8, y + 9 - this.textTop, w - 16);
   }
 
-  drawLines(lines, color, x, top) {
-    for (let index = 0; index < lines.length; index++) {
-      drawText(lines[index], this.font, color, x, top + index * this.font.height);
+  // Lines of conversation text from `x`. Given the text's `width`, as for Index's own
+  // messages, the last line is centred across it.
+  drawLines(lines, color, x, top, width) {
+    const last = lines.length - 1;
+    for (let index = 0; index <= last; index++) {
+      const line = lines[index];
+      const left = width && index === last ? x + ((width - textWidth(line, this.font)) >> 1) : x;
+      drawText(line, this.font, color, left, top + index * this.font.height);
     }
   }
 
@@ -607,7 +588,8 @@ export default class Chat {
       CARDS[body].draw({x, y: y + 1, w}, shade);
     } else {
       const top = y + CARD_TEXT_PADDING;
-      this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop);
+      this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop,
+                     w - 2 * CARD_TEXT_INSET);
       if (source) {
         drawText(source, font("Gothic-Regular", 14), quiet, x + CARD_TEXT_INSET,
                  top + this.textHeight(item.lines) + SOURCE_GAP - SOURCE_CAP_TOP);
@@ -615,8 +597,8 @@ export default class Chat {
     }
   }
 
-  // The voice input: Pebble's microphone (pinging while it waits), or, while Index thinks,
-  // the cube at the bottom left with its typing bubble.
+  // The voice input: Pebble's microphone, or, while Index thinks, the cube at the bottom
+  // left with its typing bubble.
   drawSlot(top) {
     if (top >= HEIGHT) return;
     const cx = WIDTH >> 1, cy = top + SLOT_CENTRE;
@@ -624,11 +606,11 @@ export default class Chat {
       this.thinking.draw(CUBE_X, cy);
       this.drawTyping(cy);
     } else if (this.phase === "sliding") {
-      drawMic(this.micX, cy, undefined, this.micScale);
+      drawMic(this.micX, cy, this.micScale);
     } else if (this.phase === "regrowing") {
       this.micUnfold.draw();
     } else if (this.phase !== "answering") {
-      drawMic(cx, cy, this.pingStep < PING_STEPS ? (this.pingStep << 10) / PING_STEPS | 0 : undefined);
+      drawMic(cx, cy);
     }
   }
 

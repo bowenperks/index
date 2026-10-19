@@ -237,7 +237,7 @@ def typing_bubble():
     return image(right + 1, bottom + 1, [path(outer, BLACK), path(inset(outer, weight), WHITE)])
 
 
-MIC_SIZE = 36
+MIC_SIZE = 80
 
 
 def microphone():
@@ -245,8 +245,7 @@ def microphone():
     # (VOICE_MICROPHONE_LARGE). resources/svg/Pebble_80x80_Microphone.svg is a copy of
     # PebbleOS's resources/normal/snowy/images/Pebble_80x80_Microphone.svg (Apache-2.0,
     # Google LLC). Its shapes are all straight (a polygon, lines and a polyline), converted
-    # here as PebbleOS's svg2commands would, scaled from 80px to 36px: its 4px and 3px
-    # strokes become 2px and 1px, keeping their proportions.
+    # here as PebbleOS's svg2commands would, at its own 80px with its 4px and 3px strokes.
     scale = MIC_SIZE / 80
     svg = ElementTree.parse(ROOT / 'resources/svg/Pebble_80x80_Microphone.svg').getroot()
     commands = []

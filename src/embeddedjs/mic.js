@@ -1,26 +1,18 @@
 // The voice input at the end of Index's page: Pebble's own microphone (the dictation
-// screen's), which sends out a slow ping while it waits; and the recording's waveform,
-// which runs inside the user's bubble.
+// screen's, at its own 80px); and the recording's waveform, which runs inside the user's
+// bubble.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {MIC} from "assets";
-import {render, WHITE, DARK_GRAY, LIGHT_GRAY} from "theme";
+import {render} from "theme";
 
-export const MIC_SIZE = 36;       // the microphone's art, square
-const PING_FROM = 21;             // where a ping starts, just clear of the microphone
-const PING_REACH = 12;            // how far it travels
+export const MIC_SIZE = 80;       // the microphone's art, square
 
 let glyph;
 
-// The microphone centred on (cx, cy). `ping` is the outgoing ping's progress, 0-1024, or
-// undefined; `scale` shrinks the microphone (as it turns into the thinking cube's dot).
-export function drawMic(cx, cy, ping, scale = 1) {
-  if (ping !== undefined && ping < 1024) {
-    // A thin ring that leaves the microphone and fades, dark then light, as it goes.
-    const reach = PING_FROM + Math.trunc(PING_REACH * ping / 1024);
-    render.drawCircle(ping < 512 ? DARK_GRAY : LIGHT_GRAY, cx, cy, reach);
-    render.drawCircle(WHITE, cx, cy, reach - 2);
-  }
+// The microphone centred on (cx, cy); `scale` shrinks it (as it turns into the thinking
+// cube's dot).
+export function drawMic(cx, cy, scale = 1) {
   if (scale === 1) {
     glyph ??= new Poco.PebbleDrawCommandImage(MIC);
     render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
