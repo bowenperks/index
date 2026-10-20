@@ -1,13 +1,12 @@
 // Index's one scrolling page, laid out like a messaging app: the history of what Index has
-// done, newest at the bottom, under a slim time bar, and at the very end the voice input,
-// Pebble's microphone. The page opens on the newest results with the microphone beneath
-// them.
+// done, newest at the bottom, under a slim time bar, and over its end a blue dock across
+// the bottom of the screen holding the voice input, Pebble's microphone. The page opens on
+// the newest results.
 //
 // Asking pushes things in from the bottom: the recording's waveform in the user's bubble,
-// then the whole transcribed message at once. The microphone then shrinks to a dot at the
-// bottom left, which grows into the thinking cube, with Index's typing bubble ("•••")
-// beside it. When the result comes in it takes the words' place, so the history keeps
-// results rather than questions.
+// then the whole transcribed message at once. The microphone then shrinks to a dot as it
+// slides to the dock's left, where the dot grows into the thinking cube. When the result
+// comes in it takes the words' place, so the history keeps results rather than questions.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
@@ -15,12 +14,12 @@ import * as assets from "assets";
 import {Animation, NORMAL_MAX, linear, easeInOut, easeOut, now, moook, MOOOK_MS, segmented,
         fraction} from "motion";
 import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
-        ink, font, drawText, textWidth, measure, resetPen, art, setBand, inBand, beforeRight} from "theme";
+        ink, font, drawText, textWidth, measure, resetPen, art, setBand, inBand} from "theme";
 import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
-import {drawMic, Waveform, MIC_SIZE} from "mic";
+import {drawMic, Waveform} from "mic";
 import {history} from "prompts";
 // @strip profile
 import {stats} from "theme";
@@ -40,7 +39,7 @@ const CUT_WIDTH = 40, CUT_HEIGHT = 19, ICON_ABOVE = 15, ICON_BELOW = 36 - 1 - IC
 // at least 22px above the bottom edge; the rich bodies' bottom padding is measured from
 // their last row's caps, so they get 15px more for its descenders and the gap.
 const CUT_CLEARANCE = CUT_HEIGHT + 3, BODY_CLEARANCE = CUT_HEIGHT - 4;
-const WIDGET_ICON = 36, WIDGET_DOT_RADIUS_Q8 = 4 * 256;   // the notification peek's 9px dot
+const WIDGET_ICON = 36;
 // A card's text is set like a notification's body, at the card's 10px inset, with a text
 // bubble's 9px above; a source line, if any, follows in small type.
 const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
@@ -49,20 +48,19 @@ const SCROLL_MS = 250;   // a ScrollLayer's animated offset
 // The position bar's column at the left edge, which nothing else on the page reaches:
 // cards start at CARD_MARGIN, a reply's tail 5px inside MARGIN.
 const BAR_COLUMN = 6;
-// The voice input's slot at the end of the page: the 80px microphone's centre sits 44px
-// down (its art 2-78 of its canvas), and the thinking cube's art (31px above its centre,
-// up to 42 below as it turns) fits too. Going to think, the microphone shrinks to a 5px
-// dot, and the cube grows out of a 3px dot.
-const SLOT_HEIGHT = 88, SLOT_CENTRE = 44, MIC_DOT_SCALE = 0.06, MIC_DOT_Q8 = 3 * 256;
-// While Index thinks, the cube sits at the bottom left (its art spans 35px either side of
-// its centre at most). The typing bubble fills the rest of the row, from beside the cube
-// to the user's bubbles' margin, and is the cube's height: its art (tools/build_assets.py)
-// starts 30px above the cube's centre, level with the cube's top, and its 69px body ends
-// level with the cube's bottom. The body sits 5px right of the art's left edge, which is
-// the tip of its stem, at the top as a messaging app's; its dots are 10px, 20px apart.
-const CUBE_X = 44, TYPING_X = 89, TYPING_TAIL = 5, TYPING_ABOVE = 30;
-const TYPING_WIDTH = 99, TYPING_BODY = 69, TYPING_DOT = 5, TYPING_PITCH = 20;
-const SLIDE_MS = 220, TYPING_FADE_MS = 200, TYPING_STEP_MS = 220;
+// The dock: a bar across the bottom of the screen, over the page's end, in Index blue and
+// the height of PebbleOS's notification banners (LAYOUT_BANNER_HEIGHT_RECT at the Large
+// content size, emery's default: 29px). The microphone sits at its centre, its art the
+// banner icon's size (ATTRIBUTE_ICON_TINY_SIZE_PX, 25px), as are the thinking cube and a
+// result's icon as it unfolds there.
+const DOCK_HEIGHT = 29, DOCK_TOP = HEIGHT - DOCK_HEIGHT, DOCK_CENTRE = DOCK_TOP + (DOCK_HEIGHT >> 1);
+// While Index thinks, the cube sits at the dock's left, under the cards' icons (their
+// cutout's centre), so a widget's icon unfolds there and flies straight up into its card.
+// The cube's art at rest sits 2px below its frames' centre: drawn 2px up it is centred in
+// the dock, and it stays inside the dock as it turns. Going to think, the microphone
+// shrinks to a dot there; the cube grows out of a 3px dot and folds back into one.
+const CUBE_X = CARD_MARGIN + (WIDGET_ICON >> 1), CUBE_Y = DOCK_CENTRE - 2;
+const MIC_DOT_SCALE = 0.12, DOT_Q8 = 256, SLIDE_MS = 220;
 // The recording's bubble: the waveform in a pill.
 const VOICE_PADDING = 12, VOICE_HEIGHT = 36;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
@@ -76,17 +74,17 @@ const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
 const STRETCH_POINT = fraction(5, 6);
 const PREPARE_MS = 250;   // into a recording (and again later), text is measured
 
-// Each widget: its icon for the cutout and the large one the peek unfolds, and its body
-// if not text.
+// Each widget: its icon for the cutout and the 25px one that unfolds in the dock, and its
+// body if not text.
 const WIDGETS = {
-  weather: [assets.WEATHER_MEDIUM, assets.WEATHER_LARGE, "weather"],
-  beeper: [assets.BEEPER_MEDIUM, assets.BEEPER_LARGE],
-  reminder: [assets.REMINDER_MEDIUM, assets.REMINDER_LARGE],
-  home: [assets.HOME_MEDIUM, assets.HOME_LARGE],
-  today: [assets.TODAY_MEDIUM, assets.TODAY_LARGE, "today"],
-  web: [assets.WEB_MEDIUM, assets.WEB_LARGE, "", "Source: GDPR, Article 17"],
-  map: [assets.PIN_MEDIUM, assets.PIN_LARGE, "map"],
-  translate: [assets.TRANSLATE_MEDIUM, assets.TRANSLATE_LARGE, "translate"],
+  weather: [assets.WEATHER_MEDIUM, assets.WEATHER_SMALL, "weather"],
+  beeper: [assets.BEEPER_MEDIUM, assets.BEEPER_ICON],
+  reminder: [assets.REMINDER_MEDIUM, assets.REMINDER_ICON],
+  home: [assets.HOME_MEDIUM, assets.HOME_ICON],
+  today: [assets.TODAY_MEDIUM, assets.TODAY_ICON, "today"],
+  web: [assets.WEB_MEDIUM, assets.WEB_ICON, "", "Source: GDPR, Article 17"],
+  map: [assets.PIN_MEDIUM, assets.PIN_ICON, "map"],
+  translate: [assets.TRANSLATE_MEDIUM, assets.TRANSLATE_ICON, "translate"],
 };
 
 // A fading bubble steps through the 64-colour palette from Index blue to the page.
@@ -134,12 +132,11 @@ export default class Chat {
     }
     this.lineHeight = this.font.height;   // read once: font metrics are a native call
     this.tail = new Poco.PebbleDrawCommandImage(assets.BUBBLE_TAIL).clone();
-    this.thinking = new Thinking(() => this.invalidateSlot(), () => this.thinkingDone());
-    // The result's icon unfolds and holds within the voice input's band, then flies across
-    // the page.
-    this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidateFlight() : this.invalidateSlot(),
+    this.thinking = new Thinking(() => this.invalidateDock(), () => this.thinkingDone());
+    // The result's icon unfolds and holds in the dock, then flies up the page.
+    this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidateFlight() : this.invalidateDock(),
                                          () => this.landResult(), () => this.finishTurn());
-    this.micUnfold = new IconTransition(() => this.invalidateSlot(), undefined, () => this.idle());
+    this.micUnfold = new IconTransition(() => this.invalidateDock(), undefined, () => this.idle());
     for (const [day, widget, text] of history()) {
       this.items.push(day ? this.size({type: "day", text: day}) : this.makeResult(widget, text));
     }
@@ -214,8 +211,8 @@ export default class Chat {
     return item;
   }
 
-  // Places every entry down the page below the time bar, then the voice input's slot. A
-  // short history sits at the bottom of the screen, as a messaging app's does.
+  // Places every entry down the page below the time bar. A short history sits at the
+  // bottom, just above the dock, as a messaging app's does.
   layout() {
     // A natural pause (an entry was added or removed): the turn's dropped art and entries
     // are freed here, a 2ms pause on the watch, before the next animation loads its own.
@@ -225,10 +222,9 @@ export default class Chat {
       item.y = top;
       top += item.h + GAP;
     }
-    const shift = Math.max(0, HEIGHT - top - SLOT_HEIGHT);
+    const shift = Math.max(0, DOCK_TOP - top);
     for (const item of this.items) item.y += shift;
-    this.slotTop = top + shift;
-    this.contentHeight = this.slotTop + SLOT_HEIGHT;
+    this.contentHeight = top + shift;
     this.invalidate();
   }
 
@@ -246,9 +242,9 @@ export default class Chat {
     while (this.items.length >= CAPACITY || this.items[0].type === "day" && this.items[1]?.type === "day") {
       this.items.shift();
     }
-    const before = this.slotTop;
+    const before = this.contentHeight;
     this.layout();
-    this.offsetChanged(this.clamp(this.offset - (before - this.slotTop)));
+    this.offsetChanged(this.clamp(this.offset - (before - this.contentHeight)));
   }
 
   // --- asking -----------------------------------------------------------------------
@@ -319,16 +315,19 @@ export default class Chat {
     this.timer = setTimeout(() => this.slide(), THINK_AFTER);
   }
 
-  // Index starts typing: the microphone shrinks to a dot as it slides to the bottom left,
-  // where the dot becomes the thinking cube, like a messaging app's avatar beside its
-  // typing bubble.
+  // Index starts thinking: the microphone shrinks to a dot as it slides to the dock's left,
+  // where the dot becomes the thinking cube.
   slide() {
     this.phase = "sliding";
     const from = WIDTH >> 1;
+    this.micX = from;
+    this.micY = DOCK_CENTRE;
+    this.micScale = 1;
     new Animation(SLIDE_MS, easeInOut, progress => {
       this.micX = from + Math.trunc((CUBE_X - from) * progress / NORMAL_MAX);
+      this.micY = DOCK_CENTRE + Math.trunc((CUBE_Y - DOCK_CENTRE) * progress / NORMAL_MAX);
       this.micScale = 1 - (1 - MIC_DOT_SCALE) * progress / NORMAL_MAX;
-      this.invalidateSlot();
+      this.invalidateDock();
     }, () => this.startThinking()).schedule();
   }
 
@@ -336,12 +335,11 @@ export default class Chat {
   // then folds away into a dot, which a widget's icon unfolds out of.
   startThinking() {
     this.phase = "thinking";
-    if (!this.thinking.start(MIC_DOT_Q8)) {
+    if (!this.thinking.start(DOT_Q8)) {
       this.thinkingDone();
       return;
     }
-    this.thinking.setCloseRadius(WIDGET_DOT_RADIUS_Q8);
-    this.thinkingAt = now();
+    this.thinking.setCloseRadius(DOT_Q8);
     // A result not measured during a recording (the voice build has none) is measured
     // while the cube turns, rather than as it folds away.
     if (!this.prepared && this.prepTimer === undefined) {
@@ -352,22 +350,21 @@ export default class Chat {
 
   thinkingDone() {
     this.phase = "answering";
-    this.invalidateSlot();
+    this.invalidateDock();
     this.result();
   }
 
   // The result has come in: the question fades and the result takes its place, rising in
-  // from the bottom. A widget's icon first unfolds out of the cube's dot, holds, then flies
-  // into the card's cutout as the card arrives.
+  // from the bottom. A widget's icon first unfolds out of the cube's dot in the dock, holds,
+  // then flies into the card's cutout as the card arrives.
   result() {
     if (this.prepTimer !== undefined) clearTimeout(this.prepTimer);
     this.prepareResult();
     const index = this.items.findIndex(item => item.type === "query");
     const item = this.prepared;
     this.pending = [index, item];
-    const slot = this.slotTop - this.offset;
-    const flying = item.widget && slot >= 0 && slot + SLOT_HEIGHT <= HEIGHT &&
-      this.transition.start(WIDGETS[item.widget][1], CUBE_X, slot + SLOT_CENTRE);
+    const flying = item.widget &&
+      this.transition.start(WIDGETS[item.widget][1], CUBE_X, DOCK_CENTRE, undefined, false, CUBE_X, CUBE_Y);
     // The question fades out just before the result arrives (only its band repainting); a
     // flying icon lands the result itself, as its flight begins.
     this.timer = setTimeout(() => {
@@ -390,10 +387,12 @@ export default class Chat {
     item.shade = 0;
     item.rise = RISE;
     this.layout();
-    // The page rests at its end, but never with a card's top tucked under the time bar. It
-    // goes there at once: a scroll under the icon's flight would redraw the whole screen
-    // every frame of it.
-    const offset = Math.min(this.maxOffset, item.y - this.headerHeight - 4);
+    // The page rests at its end, but never with a card's top tucked under the time bar,
+    // unless the card is taller than the page above the dock: then its icon, where the
+    // flight lands, stays clear of the dock. It goes there at once: a scroll under the
+    // icon's flight would redraw the whole screen every frame of it.
+    const offset = Math.min(this.maxOffset, Math.max(item.y - this.headerHeight - 4,
+                                                     item.y + item.h + GAP - DOCK_TOP));
     this.setOffset(offset, false);
     this.invalidate();
     if (this.transition.active) {
@@ -412,21 +411,19 @@ export default class Chat {
     if (!this.transition.active) this.finishTurn();
   }
 
-  // The turn is over: the microphone unfolds out of a dot at the centre, as the dictation
-  // screen's does, where the page will rest.
+  // The turn is over: the microphone unfolds out of a dot at the dock's centre, as the
+  // dictation screen's does.
   finishTurn() {
     this.landing = undefined;
     this.phase = "regrowing";
-    const slot = this.slotTop - this.scrollTarget + SLOT_CENTRE;
-    if (!this.micUnfold.start(assets.MIC, WIDTH >> 1, slot, undefined, true)) this.idle();
+    if (!this.micUnfold.start(assets.MIC_SMALL, WIDTH >> 1, DOCK_CENTRE, undefined, true)) this.idle();
   }
 
   // Between turns, the turn's art is let go and collected at once: its native memory (the
-  // flown icon, the typing bubble's copy) is invisible to XS, which would otherwise hold
-  // it until a collection happened for other reasons.
+  // flown icon) is invisible to XS, which would otherwise hold it until a collection
+  // happened for other reasons.
   idle() {
     this.phase = "idle";
-    this.typingArt = undefined;
     Debug.gc();
     this.invalidate();
   }
@@ -434,7 +431,7 @@ export default class Chat {
   // --- scrolling ----------------------------------------------------------------------
 
   get maxOffset() {
-    return Math.max(0, this.contentHeight - HEIGHT);
+    return Math.max(0, this.contentHeight - DOCK_TOP);
   }
 
   clamp(offset) {
@@ -494,7 +491,7 @@ export default class Chat {
   // icon stretching along the travel and squashing as it lands.
   scroll(down) {
     if (!this.visible || this.busy) return;
-    const page = HEIGHT - this.headerHeight - 48;
+    const page = DOCK_TOP - this.headerHeight - 48;
     const from = this.stretch ? this.stretch.target : this.offset;
     const target = this.clamp(from + (down ? page : -page));
     if (target === from) return;
@@ -529,7 +526,7 @@ export default class Chat {
       const item = items[index];
       if (!item.widget || item.shade !== 255 || item === this.landing) continue;
       const top = item.y - offset + this.iconTop(item);
-      if (top >= header && top + WIDGET_ICON <= HEIGHT) {
+      if (top >= header && top + WIDGET_ICON <= DOCK_TOP) {
         Natives.iconCapture(WIDGETS[item.widget][0], item.x, top);
       }
     }
@@ -544,7 +541,7 @@ export default class Chat {
   }
 
   // A Touch sensor sample: [{x, y}] while the finger is down, [] when it lifts. A drag
-  // scrolls the page; a tap on the microphone asks.
+  // scrolls the page; a tap on the dock asks.
   touch(points) {
     if (!this.visible || !points) return;
     if (this.busy) {
@@ -565,8 +562,7 @@ export default class Chat {
         this.setOffset(this.touchOffset - delta, false);
       }
     } else if (this.touchOrigin) {
-      const slot = this.slotTop - this.offset, y = this.touchOrigin.y;
-      if (!this.dragging && y >= slot && y < slot + SLOT_HEIGHT) this.talk();
+      if (!this.dragging && this.touchOrigin.y >= DOCK_TOP) this.talk();
       this.touchOrigin = undefined;
     }
   }
@@ -624,21 +620,26 @@ export default class Chat {
   // --- drawing --------------------------------------------------------------------------
 
   // Paints what has changed since the last frame, and says whether it submitted a frame.
-  // Most changes repaint the screen, but
-  // while only the voice input or the recording animates, just that band is repainted,
-  // and a scroll moves the rows already on the screen and paints only what it exposed:
-  // on the watch, redrawing every card's text each frame is what makes motion stutter.
-  // The frame buffer keeps the rest from the frame before.
+  // Most changes repaint the whole screen, but while only the dock or the recording
+  // animates, just that band is repainted, and a scroll moves the page's rows already on
+  // the screen and paints only what it exposed: on the watch, redrawing every card's text
+  // each frame is what makes motion stutter. The dock repaints on its own, along with
+  // whatever else the frame paints. The frame buffer keeps the rest from the frame before.
   render() {
-    const dirty = this.dirty;
-    this.dirty = undefined;
-    if (dirty === undefined) return;
-    if (dirty === "scroll" && !this.notice && this.scrollScreen(this.offset - this.drawnOffset)) {
+    const dirty = this.dirty, dock = this.dockDirty;
+    this.dirty = this.dockDirty = undefined;
+    if (dirty === undefined && !dock) return;
+    if (dirty === "scroll" && !this.notice && this.scrollScreen(this.offset - this.drawnOffset, dock)) {
       // Painted by scrollScreen.
-    } else if (dirty === "area" && !this.notice) {
-      const top = Math.max(this.headerHeight, this.dirtyTop - this.offset);
-      const bottom = Math.min(HEIGHT, this.dirtyBottom - this.offset);
-      if (bottom <= top) return;
+    } else if (dirty !== true && dirty !== "scroll" && !this.notice) {
+      // A band of the page, the dock, or both in one band down to the bottom.
+      let top = DOCK_TOP, bottom = HEIGHT;
+      if (dirty === "area") {
+        top = Math.max(this.headerHeight, this.dirtyTop - this.offset);
+        if (dock) top = Math.min(top, DOCK_TOP);
+        else bottom = Math.min(HEIGHT, this.dirtyBottom - this.offset);
+        if (bottom <= top) return;
+      }
       render.begin(0, top, WIDTH, bottom - top);
       this.draw(top, bottom);
     } else {
@@ -658,20 +659,21 @@ export default class Chat {
     return true;
   }
 
-  // A scrolled frame. The rows on the screen move by the scroll, natively (scroll.c), and
-  // only what that exposed is painted: a strip at the bottom or the top and the position
-  // bar's column. Everything else on the page moved with the rows, except, in an Up /
+  // A scrolled frame. The page's rows on the screen (between the time bar and the dock)
+  // move by the scroll, natively (scroll.c), and only what that exposed is painted: a strip
+  // at the bottom or the top and the position bar's column, and the dock when it changed
+  // too. Everything else on the page moved with the rows, except, in an Up /
   // Down step, the icons, which stretch instead. Each is painted again over the rows it
   // covered last frame (moved with the rows) and covers now, in its 40px column, bands
   // that meet merged so every icon is drawn once; the strip leaves them out. False when
   // the rows cannot be moved: before the hook is in, or by a whole page.
-  scrollScreen(dy) {
+  scrollScreen(dy, dock) {
     const header = this.headerHeight, step = dy < 0 ? -dy : dy, stretch = this.stretch;
-    if (!hooked || step >= HEIGHT - header || (!step && !stretch)) return false;
+    if (!hooked || step >= DOCK_TOP - header || (!step && !stretch)) return false;
     // @strip profile
     let mark = now();
     // @endstrip
-    if (step && !Natives.shiftRows(header, HEIGHT, dy)) return false;
+    if (step && !Natives.shiftRows(header, DOCK_TOP, dy)) return false;
     // @strip profile
     stats.shift += now() - mark;
     mark = now();
@@ -682,7 +684,7 @@ export default class Chat {
     // screen is pushed first, and each band's pop restores the whole screen.
     render.clip(0, 0, WIDTH, HEIGHT);
     this.iconsHeld = stretch !== undefined;
-    if (dy > 0) this.drawBand(0, HEIGHT - step, WIDTH, HEIGHT);
+    if (dy > 0) this.drawBand(0, DOCK_TOP - step, WIDTH, DOCK_TOP);
     else if (dy < 0) this.drawBand(0, header, WIDTH, header + step);
     this.iconsHeld = false;
     // @strip profile
@@ -700,7 +702,7 @@ export default class Chat {
         const from = span[0] - dy, to = span[1] - dy;
         this.iconSpan(item, item.y - offset, stretch.progress);
         const first = Math.max(header, Math.min(from, span[0]) - 1);
-        const last = Math.min(HEIGHT, Math.max(to, span[1]) + 1);
+        const last = Math.min(DOCK_TOP, Math.max(to, span[1]) + 1);
         if (last <= first) continue;
         if (bottom > top && first <= bottom) {
           bottom = Math.max(bottom, last);
@@ -717,8 +719,9 @@ export default class Chat {
     mark = now();
     // @endstrip
     // The position bar's column, cleared: nothing else on the page reaches it.
-    render.fillRectangle(WHITE, 0, header, BAR_COLUMN, HEIGHT - header);
+    render.fillRectangle(WHITE, 0, header, BAR_COLUMN, DOCK_TOP - header);
     if (this.barVisible) this.drawScrollBar();
+    if (dock) this.drawBand(0, DOCK_TOP, WIDTH, HEIGHT);
     // A band at the top of the page reaches one row into the time bar: its rule again.
     render.fillRectangle(WHITE, 0, header - 1, WIDTH, 1);
     render.drawLine(8, header - 1, WIDTH - 8, header - 1, DARK_GRAY, 1);
@@ -775,9 +778,10 @@ export default class Chat {
     this.requestDraw();
   }
 
-  // The voice input's band, with 8px either side for an unfolding icon's overshoot.
-  invalidateSlot() {
-    this.invalidateArea(this.slotTop - 8, this.slotTop + SLOT_HEIGHT + 8);
+  // The dock, repainted on its own (render).
+  invalidateDock() {
+    this.dockDirty = true;
+    this.requestDraw();
   }
 
   // The flying icon's band: where it is now and where it was last frame (page
@@ -800,30 +804,29 @@ export default class Chat {
     setBand(top - 1, bottom, right);
     this.bandTop = top - 1;
     this.bandBottom = bottom;
-    // The page is cleared strip by strip, each just before what goes on it, never all at
-    // once: the firmware can copy the frame buffer to the display mid-draw (see main.js),
-    // and this way it catches at most one item half drawn, not a white screen. An indexed
-    // loop: for...of makes an iterator, every frame.
-    let cleared = top;
-    for (let index = 0; index < items.length; index++) {
-      const item = items[index], y = item.y - offset + item.rise;
-      if (y + item.h <= top || y >= bottom) continue;
-      const end = Math.min(y + item.h, bottom);
-      if (end > cleared) {
-        render.fillRectangle(WHITE, 0, cleared, WIDTH, end - cleared);
-        cleared = end;
+    // The page, which the dock covers from DOCK_TOP. It is cleared strip by strip, each
+    // just before what goes on it, never all at once: the firmware can copy the frame
+    // buffer to the display mid-draw (see main.js), and this way it catches at most one
+    // item half drawn, not a white screen. An indexed loop: for...of makes an iterator,
+    // every frame. An entry reaching under the dock is drawn there too, and covered.
+    const page = Math.min(bottom, DOCK_TOP);
+    if (page > top) {
+      let cleared = top;
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index], y = item.y - offset + item.rise;
+        if (y + item.h <= top || y >= page) continue;
+        const end = Math.min(y + item.h, page);
+        if (end > cleared) {
+          render.fillRectangle(WHITE, 0, cleared, WIDTH, end - cleared);
+          cleared = end;
+        }
+        this.drawItem(item, y);
       }
-      this.drawItem(item, y);
+      if (page > cleared) render.fillRectangle(WHITE, 0, cleared, WIDTH, page - cleared);
     }
-    if (bottom > cleared) render.fillRectangle(WHITE, 0, cleared, WIDTH, bottom - cleared);
-    const slot = this.slotTop - offset;
-    // The microphone sits mid-page; the cube, while Index thinks, at the left.
-    if (inBand(slot - 8, slot + SLOT_HEIGHT + 8) &&
-        beforeRight(this.thinking.active ? 0 : (WIDTH - MIC_SIZE) >> 1)) {
-      this.drawSlot(slot);
-    }
-    // The result's icon: unfolding and holding in the voice input's band, or flying over
-    // the page into its card.
+    if (bottom > DOCK_TOP) this.drawDock();
+    // The result's icon: unfolding and holding in the dock, or flying up the page into its
+    // card.
     if (this.transition.active) this.transition.draw();
     setBand(-32768, 32767, 32767);
     if (top > 0) return;
@@ -835,7 +838,7 @@ export default class Chat {
     // @strip dictation
     if (this.notice) {
       const h = this.textHeight(this.notice) + 18;
-      this.drawBubble(MARGIN, HEIGHT - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true,
+      this.drawBubble(MARGIN, DOCK_TOP - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true,
                       this.noticeLastX);
     }
     // @endstrip
@@ -955,61 +958,26 @@ export default class Chat {
     }
   }
 
-  // The voice input: Pebble's microphone, or, while Index thinks, the cube at the bottom
-  // left with its typing bubble.
-  drawSlot(top) {
-    if (top >= HEIGHT) return;
-    const cx = WIDTH >> 1, cy = top + SLOT_CENTRE;
+  // The dock: Pebble's microphone at its centre, sliding left as it shrinks to a dot; the
+  // cube, while Index thinks, at the left; then (while a result's icon unfolds and flies
+  // off) nothing, until the microphone unfolds again.
+  drawDock() {
+    render.fillRectangle(VIVID_CERULEAN, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
     if (this.thinking.active) {
-      this.thinking.draw(CUBE_X, cy);
-      this.drawTyping(cy);
+      this.thinking.draw(CUBE_X, CUBE_Y);
     } else if (this.phase === "sliding") {
-      drawMic(this.micX, cy, this.micScale);
+      drawMic(this.micX, this.micY, this.micScale);
     } else if (this.phase === "regrowing") {
       this.micUnfold.draw();
     } else if (this.phase !== "answering") {
-      drawMic(cx, cy);
-    }
-  }
-
-  // Index's typing bubble, its stem towards the cube: "•••", the dots darkening in turn. It
-  // fades in as the cube appears and out as the cube folds away, its lines stepping
-  // through the palette's greys.
-  drawTyping(cy) {
-    const fade = this.thinking.closing ? 255 - this.thinking.elapsed * 255 / TYPING_FADE_MS
-                                       : (now() - this.thinkingAt) * 255 / TYPING_FADE_MS;
-    const shade = Math.min(255, Math.max(0, Math.trunc(fade / 85) * 85));
-    if (!shade) return;
-    // One recolourable copy of the art (only a copy can be processed) is made and kept: a
-    // copy per frame would be native memory XS cannot see. Its first shape is the black one
-    // that leaves the lines.
-    if (!this.typingArt) {
-      this.typingArt = new Poco.PebbleDrawCommandImage(assets.TYPING_BUBBLE).clone();
-      this.typingShade = undefined;
-    }
-    if (this.typingShade !== shade) {
-      // Recoloured only as the fade steps, not every frame.
-      let first = true;
-      this.typingArt.process(command => {
-        if (first) command.fill = ink(shade);
-        first = false;
-      });
-      this.typingShade = shade;
-    }
-    const y = cy - TYPING_ABOVE;
-    render.drawDCI(this.typingArt, TYPING_X - TYPING_TAIL, y);
-    const active = Math.trunc(now() / TYPING_STEP_MS) % 4;
-    for (let dot = 0; dot < 3; dot++) {
-      render.drawCircle(ink(dot === active ? shade : Math.min(shade, 85)),
-                        TYPING_X + (TYPING_WIDTH >> 1) + (dot - 1) * TYPING_PITCH,
-                        y + (TYPING_BODY >> 1), TYPING_DOT);
+      drawMic(WIDTH >> 1, DOCK_CENTRE);
     }
   }
 
   // The original history view's position bar: a thin dark thumb down the left edge,
   // sized and placed by how much of the page is on screen.
   drawScrollBar() {
-    const visible = HEIGHT - this.headerHeight;
+    const visible = DOCK_TOP - this.headerHeight;
     const page = this.contentHeight - this.headerHeight;
     if (page <= visible) return;
     const track = visible - 20;

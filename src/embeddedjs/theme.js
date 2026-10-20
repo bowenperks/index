@@ -84,7 +84,7 @@ function metric(f) {
 // line whose 127px text box reaches the clip at all, so without this a band a few rows
 // high costs the text of whole cards.
 // A narrow band (a scroll's icon column) also ends at `right`: text that starts beyond it
-// is skipped too, and callers check wide art with beforeRight.
+// is skipped too.
 let bandTop = -32768, bandBottom = 32767, bandRight = 32767;
 export function setBand(top, bottom, right) {
   bandTop = top;
@@ -92,7 +92,6 @@ export function setBand(top, bottom, right) {
   bandRight = right;
 }
 export const inBand = (top, bottom) => bottom > bandTop && top < bandBottom;
-export const beforeRight = left => left < bandRight;
 
 // @strip profile
 // Lines of text drawn this frame, for the instrumented build's profile.

@@ -1,6 +1,6 @@
 // A widget icon's entrance, after PebbleOS's notification peek: the icon unfolds out of
-// the thinking cube's dot, holds, then flies into the icon square in the card's header,
-// stretching along its path and squashing as it lands.
+// the thinking cube's dot in the dock, holds, then flies into the cutout in the card's
+// corner, stretching along its path and squashing as it lands.
 //
 // The firmware moves every point of the vector icon on its own delay (kino_reel_unfold,
 // scale_segmented). Alloy can transform a whole PDC but not move single points, so here
@@ -13,9 +13,13 @@ import {Animation, NORMAL_MAX, linear, easeInOut, segmented, fraction} from "mot
 import {render} from "theme";
 
 // Timings and effects as the firmware's peek sets them (peek_layer.c, unfold.h,
-// scale_segmented.h), plus a short hold so the large icon reads before it goes.
+// scale_segmented.h), plus a short hold so the icon reads before it goes. The peek's are
+// for its 80px icon: the dot's stroke and the unfold's overshoot scale with the icon's
+// size (the dock's 25px icons: a 3px dot, 2px past the icon on each side, which fills the
+// dock's height exactly).
 export const UNFOLD_MS = 500, HOLD_MS = 300, FLY_MS = 300;
 const TOTAL_MS = UNFOLD_MS + HOLD_MS + FLY_MS;
+const PEEK_ICON = 80;
 const DOT_STROKE = 8;        // the peek's 9px dot
 const UNFOLD_EXPAND = 8;     // unfold deflate effect
 const FLY_EXPAND = 10;       // scale-to deflate effect
@@ -53,25 +57,28 @@ export default class IconTransition {
     return this.active && this.flyingStarted;
   }
 
-  // Unfolds the PDC resource at (cx, cy) at its own size, then scales it into `to`. The
-  // destination can instead be given by `retarget` from the `flying` callback, once the
-  // page has settled where the icon will land. With `unfoldOnly` it just unfolds, as the
-  // dictation screen's microphone does, and finishes there.
-  start(resource, cx, cy, to, unfoldOnly) {
+  // Unfolds the PDC resource at (cx, cy) at its own size, out of the point (fromX, fromY)
+  // (its centre by default), then scales it into `to`. The destination can instead be
+  // given by `retarget` from the `flying` callback, once the page has settled where the
+  // icon will land. With `unfoldOnly` it just unfolds, as the dictation screen's
+  // microphone does, and finishes there.
+  start(resource, cx, cy, to, unfoldOnly, fromX = cx, fromY = cy) {
     if (this.active) return false;
     this.image = new Poco.PebbleDrawCommandImage(resource);
     this.strokes = [];
     this.image.clone().process(command => this.strokes.push(command.strokeWidth));
     const w = this.image.width, h = this.image.height;
     this.size = [w, h];
+    this.dotStroke = Math.max(1, Math.round(DOT_STROKE * h / PEEK_ICON));
+    const expand = Math.trunc(UNFOLD_EXPAND * h / PEEK_ICON);
     this.large = {x: cx - (w >> 1), y: cy - (h >> 1), w, h};
-    // Per axis (0 x, 1 y): the large icon as [first pixel, size], the unfold's expanded
-    // box, and the point it unfolds from. Worked out once: the span is wanted two or three
-    // times a frame, and arrays made there were garbage every frame.
+    // Per axis (0 x, 1 y): the icon as [first pixel, size], the unfold's expanded box, and
+    // the point it unfolds from. Worked out once: the span is wanted two or three times a
+    // frame, and arrays made there were garbage every frame.
     this.largeAxis = [[this.large.x, w], [this.large.y, h]];
-    this.unfoldMiddle = [[this.large.x - UNFOLD_EXPAND, w + 2 * UNFOLD_EXPAND],
-                         [this.large.y - UNFOLD_EXPAND, h + 2 * UNFOLD_EXPAND]];
-    this.unfoldFrom = [[this.large.x + (w >> 1), 0], [this.large.y + (h >> 1), 0]];
+    this.unfoldMiddle = [[this.large.x - expand, w + 2 * expand],
+                         [this.large.y - expand, h + 2 * expand]];
+    this.unfoldFrom = [[fromX, 0], [fromY, 0]];
     this.out = [0, 0];
     this.retarget(to ?? this.large);
     this.elapsed = this.draws = 0;
@@ -166,8 +173,8 @@ export default class IconTransition {
     const list = this.image.clone();
     list.scale(Math.max(0, right - left) / this.size[0], Math.max(0, bottom - top) / this.size[1]);
     // Strokes move between two widths, in eighths with rounding: the dot's thick stroke
-    // eases back to the art's own over the unfold's first quarter; flying ends near the
-    // small icon's 2px strokes.
+    // eases back to the art's own over the unfold's first quarter; flying, they scale with
+    // the icon to its destination's size (the dock's 2px become the card icon's 3px).
     let index = 0, unfolding = this.elapsed < UNFOLD_MS + HOLD_MS, progress;
     if (unfolding) {
       const unfold = this.elapsed >= UNFOLD_MS ? NORMAL_MAX : Math.trunc(this.elapsed * NORMAL_MAX / UNFOLD_MS);
@@ -176,11 +183,12 @@ export default class IconTransition {
       const fly = this.elapsed - UNFOLD_MS - HOLD_MS;
       progress = easeInOut(fly >= FLY_MS ? NORMAL_MAX : Math.trunc(fly * NORMAL_MAX / FLY_MS));
     }
+    const landing = this.to.h / this.size[1];
     list.process(command => {
       const native = this.strokes[index++];
       if (!native) return;
-      const from = unfolding ? DOT_STROKE : native;
-      const to = unfolding ? native : (native + 1) >> 1;
+      const from = unfolding ? this.dotStroke : native;
+      const to = unfolding ? native : Math.max(1, Math.round(native * landing));
       const eighths = from * 8 + Math.trunc((to - from) * 8 * progress / NORMAL_MAX);
       command.strokeWidth = (eighths + 4) >> 3;
     });

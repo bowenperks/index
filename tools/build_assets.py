@@ -239,15 +239,20 @@ def typing_bubble():
 
 
 MIC_SIZE = 80
+# The dock's icons (the microphone, the thinking cube, a result's icon as it unfolds) are
+# the size of the icon in PebbleOS's notification banner: ATTRIBUTE_ICON_TINY_SIZE_PX.
+DOCK_ICON = 25
 
 
-def microphone():
+def microphone(size=MIC_SIZE, stroke=None):
     # The voice input's microphone: Pebble's own, the one the system dictation screen shows
     # (VOICE_MICROPHONE_LARGE). resources/svg/Pebble_80x80_Microphone.svg is a copy of
     # PebbleOS's resources/normal/snowy/images/Pebble_80x80_Microphone.svg (Apache-2.0,
     # Google LLC). Its shapes are all straight (a polygon, lines and a polyline), converted
-    # here as PebbleOS's svg2commands would, at its own 80px with its 4px and 3px strokes.
-    scale = MIC_SIZE / 80
+    # here as PebbleOS's svg2commands would, at its own 80px with its 4px and 3px strokes,
+    # or scaled to `size` with strokes `stroke(width)` (the dock's: 25px of ink on a 24px
+    # canvas, the outline and base 2px as a 25px icon's, the grille, rays and stand 1px).
+    scale = size / 80
     svg = ElementTree.parse(ROOT / 'resources/svg/Pebble_80x80_Microphone.svg').getroot()
     commands = []
     for element in svg:
@@ -263,29 +268,40 @@ def microphone():
         else:
             continue
         fill = WHITE if element.get('fill', 'none').upper() == '#FFFFFF' else 0
-        stroke = max(1, round(float(element.get('stroke-width', '1')) * scale))
-        commands.append(struct.pack('<5B2H', 3, 0, BLACK, stroke, fill, int(tag != 'polygon'), len(points)) +
+        width = float(element.get('stroke-width', '1'))
+        width = stroke(width) if stroke else max(1, round(width * scale))
+        commands.append(struct.pack('<5B2H', 3, 0, BLACK, width, fill, int(tag != 'polygon'), len(points)) +
                         b''.join(struct.pack('<2h', round(x * scale * 8), round(y * scale * 8))
                                  for x, y in points))
-    return image(MIC_SIZE, MIC_SIZE, commands)
+    return image(size, size, commands)
 
 
-def thinking_frames():
+# The cube turning at rest is 69.5px tall on its 96px canvas: scaled so it is the dock's
+# icon size. Its shapes are all fills of precise (1/8 px) paths.
+CUBE_HEIGHT = 69.5
+
+
+def thinking_frames(scale=DOCK_ICON / CUBE_HEIGHT):
     data = (PDC / 'index-thinking-light.pdc').read_bytes()
     assert data[:4] == b'PDCS'
     _, _, width, height, _, count = struct.unpack_from('<BBhhHH', data, 8)
+    width, height = round(width * scale), round(height * scale)
     offset, frames = 18, []
     for _ in range(count):
         _, commands = struct.unpack_from('<HH', data, offset)
-        start = offset + 4
-        offset = start
+        offset += 4
+        body = b''
         for _ in range(commands):
-            points, = struct.unpack_from('<H', data, offset + 7)
+            kind, hidden, stroke, stroke_width, fill, extra, points = struct.unpack_from('<5B2H', data, offset)
+            assert kind == 3, 'cube frames are precise paths'
+            coords = [struct.unpack_from('<2h', data, offset + 9 + 4 * index) for index in range(points)]
+            body += (struct.pack('<5B2H', kind, hidden, stroke, stroke_width, fill, extra, points) +
+                     b''.join(struct.pack('<2h', round(x * scale), round(y * scale)) for x, y in coords))
             offset += 9 + 4 * points
         # A one-frame sequence (PDCS), not an image: Alloy keeps every PDC image it has
         # loaded cached by resource id, so 81 frame images would all stay in memory;
         # sequences are released by the garbage collector.
-        payload = struct.pack('<BBhhHH', 1, 0, width, height, 1, 1) + struct.pack('<HH', 1, commands) + data[start:offset]
+        payload = struct.pack('<BBhhHH', 1, 0, width, height, 1, 1) + struct.pack('<HH', 1, commands) + body
         frames.append(b'PDCS' + struct.pack('<I', len(payload)) + payload)
     assert offset == len(data)
     return frames
@@ -309,6 +325,8 @@ for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
     STATIC.append((f'{widget.upper()}_MEDIUM', f'pdc/index-widget-{widget}-medium.pdc', 'raw'))
 STATIC += [
     ('MIC', 'pdc/index-mic.pdc', 'raw'),
+    ('MIC_SMALL', 'pdc/index-mic-small.pdc', 'raw'),
+    ('WEATHER_SMALL', 'pdc/index-widget-weather-small.pdc', 'raw'),
     ('STREET_MAP', 'pdc/index-street-map.pdc', 'raw'),
     ('TYPING_BUBBLE', 'pdc/index-typing-bubble.pdc', 'raw'),
 ]
@@ -320,6 +338,11 @@ def build():
     (PDC / 'index-weather-disc.pdc').write_bytes(weather_disc())
     (PDC / 'index-pen.pdc').write_bytes(pen())
     (PDC / 'index-mic.pdc').write_bytes(microphone())
+    (PDC / 'index-mic-small.pdc').write_bytes(microphone(24, lambda width: 2 if width >= 4 else 1))
+    # The weather's dock icon, from the 80px vector partly-cloudy icon (strokes halved).
+    (PDC / 'index-widget-weather-small.pdc').write_bytes(
+        scale_pdc(PDC / 'index-weather-partly-cloudy-large.pdc', DOCK_ICON / LARGE_SIZE,
+                  lambda width: max(1, round(width / 2))))
     (PDC / 'index-street-map.pdc').write_bytes(street_map())
     (PDC / 'index-typing-bubble.pdc').write_bytes(typing_bubble())
     medium_icons()

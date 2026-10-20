@@ -8,23 +8,26 @@ The sibling `../index` folder is the older native C implementation.
 ## What it looks like
 
 Index opens like a messaging app, on its history of results: newest at the bottom,
-a slim time bar on top, day labels ("Yesterday", "Today") between days, and the
-voice input at the very end: Pebble's own microphone, the one the system dictation
-screen shows, at its own 80px. Up/Down or a touch drag scroll the history. The last line
-of each of Index's messages is centred in its bubble.
+a slim time bar on top, day labels ("Yesterday", "Today") between days, and a blue dock
+across the bottom of the screen holding the voice input: Pebble's own microphone, the one
+the system dictation screen shows, centred. The dock is the height of PebbleOS's
+notification banners (29px, `LAYOUT_BANNER_HEIGHT_RECT` at emery's Large content size),
+and everything in it is the banner icon's size (25px, `ATTRIBUTE_ICON_TINY_SIZE_PX`).
+Up/Down or a touch drag scroll the history above it. The last line of each of Index's
+messages is centred in its bubble.
 
 Asking pushes things in from the bottom. The recording's waveform runs in the user's
 blue bubble, then the whole transcribed message comes in at once. While Index thinks,
-the microphone shrinks to a dot as it slides to the bottom left, and the dot grows into
-the thinking cube, like a messaging app's avatar, with Index's typing bubble ("•••",
-the dots darkening in turn) beside it: the cube's height, filling the row, drawn like the
-cube with 2px black lines. When the result comes in, it takes the words' place: the
-history keeps results, not questions. A widget's icon unfolds out of the cube's dot
-(after the notification peek), then flies into its card as the card rises in. The
-microphone then unfolds out of a dot at the centre, as the dictation screen's does.
+the microphone shrinks to a dot as it slides to the dock's left, under the cards' icons,
+and the dot grows into the thinking cube. When the result comes in, it takes the words'
+place: the history keeps results, not questions. A widget's icon unfolds out of the
+cube's dot (after the notification peek), then flies up into its card as the card rises
+in. The microphone then unfolds out of a dot at the dock's centre, as the dictation
+screen's does.
 
 The microphone's art is PebbleOS's `Pebble_80x80_Microphone.svg` (Apache-2.0, Google
-LLC), copied to `resources/svg/` and converted to a PDC by `tools/build_assets.py`.
+LLC), copied to `resources/svg/` and converted to a 24px PDC (25px of ink) by
+`tools/build_assets.py`, which also scales the cube's frames to 25px.
 
 Widget cards have no header: the card is all information. Its frame stops short of the
 bottom-left corner, leaving a cutout with no lines around it, where the widget's 36px icon
@@ -42,7 +45,7 @@ INDEX_PLAYTEST=1 sh tools/build.sh
 pebble install --phone localhost:54405 dist/index-alloy-playtest.pbw
 ```
 
-Press Select, or tap the microphone, to play the next request of the demo reel: a
+Press Select, or tap the dock, to play the next request of the demo reel: a
 simulated 1.8 s recording, then its transcription, thinking, and the result:
 
 1. "Send a message to my wife. Roz just said there's a bike in the distance." Beeper card

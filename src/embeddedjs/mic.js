@@ -1,12 +1,12 @@
-// The voice input at the end of Index's page: Pebble's own microphone (the dictation
-// screen's, at its own 80px); and the recording's waveform, which runs inside the user's
-// bubble.
+// The voice input in Index's dock: Pebble's own microphone (the dictation screen's, scaled
+// to the notification banner's 25px icon: 25px of ink on a 24px canvas); and the
+// recording's waveform, which runs inside the user's bubble.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
-import {MIC} from "assets";
+import {MIC_SMALL} from "assets";
 import {render} from "theme";
 
-export const MIC_SIZE = 80;       // the microphone's art, square
+export const MIC_SIZE = 24;       // the microphone's canvas, square
 
 let glyph, scaledDraws = 0;
 
@@ -14,14 +14,14 @@ let glyph, scaledDraws = 0;
 // cube's dot).
 export function drawMic(cx, cy, scale = 1) {
   if (scale === 1) {
-    glyph ??= new Poco.PebbleDrawCommandImage(MIC);
+    glyph ??= new Poco.PebbleDrawCommandImage(MIC_SMALL);
     render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
     return;
   }
   // A scaled copy is native memory XS cannot see: the last few are collected every second
   // draw (a 2ms pause on the watch).
   if (++scaledDraws % 2 === 0) Debug.gc();
-  const small = new Poco.PebbleDrawCommandImage(MIC).clone().scale(scale);
+  const small = new Poco.PebbleDrawCommandImage(MIC_SMALL).clone().scale(scale);
   const half = Math.trunc(MIC_SIZE * scale / 2);
   render.drawDCI(small, cx - half, cy - half);
 }

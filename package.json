@@ -228,6 +228,16 @@
         },
         {
           "type": "raw",
+          "name": "INDEX_MIC_SMALL",
+          "file": "pdc/index-mic-small.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEATHER_SMALL",
+          "file": "pdc/index-widget-weather-small.pdc"
+        },
+        {
+          "type": "raw",
           "name": "INDEX_STREET_MAP",
           "file": "pdc/index-street-map.pdc"
         },
