@@ -15,8 +15,7 @@ import {render} from "theme";
 // Timings and effects as the firmware's peek sets them (peek_layer.c, unfold.h,
 // scale_segmented.h), plus a short hold so the icon reads before it goes. The peek's are
 // for its 80px icon: the dot's stroke and the unfold's overshoot scale with the icon's
-// size (the dock's 25px icons: a 3px dot, 2px past the icon on each side, which fills the
-// dock's height exactly).
+// size (the dock's 25px icons: a 3px dot, 2px past the icon on each side).
 export const UNFOLD_MS = 500, HOLD_MS = 300, FLY_MS = 300;
 const TOTAL_MS = UNFOLD_MS + HOLD_MS + FLY_MS;
 const PEEK_ICON = 80;

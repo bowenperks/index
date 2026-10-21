@@ -10,9 +10,11 @@ The sibling `../index` folder is the older native C implementation.
 Index opens like a messaging app, on its history of results: newest at the bottom,
 a slim time bar on top, day labels ("Yesterday", "Today") between days, and a blue dock
 across the bottom of the screen holding the voice input: Pebble's own microphone, the one
-the system dictation screen shows, centred. The dock is the height of PebbleOS's
-notification banners (29px, `LAYOUT_BANNER_HEIGHT_RECT` at emery's Large content size),
-and everything in it is the banner icon's size (25px, `ATTRIBUTE_ICON_TINY_SIZE_PX`).
+the system dictation screen shows, centred. The dock is the height of a PebbleOS
+notification's coloured banner as the firmware draws it (49px, measured on the emery
+emulator: the 20px status bar in the banner's colour, then the 29px
+`LAYOUT_BANNER_HEIGHT_RECT`), and everything in it is the banner icon's size (25px). The
+time bar's clock sits where the firmware's status bar puts it (digits from row 5).
 Up/Down or a touch drag scroll the history above it. The last line of each of Index's
 messages is centred in its bubble.
 

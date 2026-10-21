@@ -45,20 +45,22 @@ const WIDGET_ICON = 36;
 const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
 const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
+const STATUS_DIGITS_TOP = 5;
 // The position bar's column at the left edge, which nothing else on the page reaches:
 // cards start at CARD_MARGIN, a reply's tail 5px inside MARGIN.
 const BAR_COLUMN = 6;
 // The dock: a bar across the bottom of the screen, over the page's end, in Index blue and
-// the height of PebbleOS's notification banners (LAYOUT_BANNER_HEIGHT_RECT at the Large
-// content size, emery's default: 29px). The microphone sits at its centre, its art the
-// banner icon's size (ATTRIBUTE_ICON_TINY_SIZE_PX, 25px), as are the thinking cube and a
-// result's icon as it unfolds there.
-const DOCK_HEIGHT = 29, DOCK_TOP = HEIGHT - DOCK_HEIGHT, DOCK_CENTRE = DOCK_TOP + (DOCK_HEIGHT >> 1);
+// the height of a PebbleOS notification's coloured banner as the firmware draws it,
+// measured on the emery emulator: 49px (the 20px status bar in the banner's colour, then
+// the 29px LAYOUT_BANNER_HEIGHT_RECT). The microphone sits at its centre, its art the size
+// of the banner's icon (25px, measured; ATTRIBUTE_ICON_TINY_SIZE_PX), as are the thinking
+// cube and a result's icon as it unfolds there.
+const DOCK_HEIGHT = 49, DOCK_TOP = HEIGHT - DOCK_HEIGHT, DOCK_CENTRE = DOCK_TOP + (DOCK_HEIGHT >> 1);
 // While Index thinks, the cube sits at the dock's left, under the cards' icons (their
 // cutout's centre), so a widget's icon unfolds there and flies straight up into its card.
 // The cube's art at rest sits 2px below its frames' centre: drawn 2px up it is centred in
-// the dock, and it stays inside the dock as it turns. Going to think, the microphone
-// shrinks to a dot there; the cube grows out of a 3px dot and folds back into one.
+// the dock. Going to think, the microphone shrinks to a dot there; the cube grows out of
+// a 3px dot and folds back into one.
 const CUBE_X = CARD_MARGIN + (WIDGET_ICON >> 1), CUBE_Y = DOCK_CENTRE - 2;
 const MIC_DOT_SCALE = 0.12, DOT_Q8 = 256, SLIDE_MS = 220;
 // The recording's bubble: the waveform in a pill.
@@ -591,10 +593,14 @@ export default class Chat {
     this.clock = watch.hour12
       ? (now.getHours() % 12 || 12) + ":" + minutes + (now.getHours() < 12 ? " AM" : " PM")
       : String(now.getHours()).padStart(2, "0") + ":" + minutes;
+    // The time sits where the firmware's status bar puts it (STATUS_BAR_LAYER_HEIGHT 20,
+    // Gothic 18: the digits from row 5, measured on the emery emulator); the Extra Large
+    // bar centres its larger type.
     const bearing = this.headerHeight === 28 ? 10 : 7;
     const descender = this.headerHeight === 28 ? 4 : 3;
     const inkHeight = this.clockFont.height - bearing + descender;
-    this.clockTop = Math.trunc((this.headerHeight - 1 - inkHeight) / 2) - bearing;
+    this.clockTop = this.headerHeight === 28 ? Math.trunc((this.headerHeight - 1 - inkHeight) / 2) - bearing
+                                             : STATUS_DIGITS_TOP - bearing;
     this.clockX = (WIDTH - textWidth(this.clock, this.clockFont)) >> 1;
     this.invalidate();
   }
