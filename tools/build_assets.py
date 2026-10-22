@@ -239,8 +239,8 @@ def typing_bubble():
 
 
 MIC_SIZE = 80
-# The dock's icons (the microphone, the thinking cube, a result's icon as it unfolds) are
-# the size of the icon in PebbleOS's notification banner: ATTRIBUTE_ICON_TINY_SIZE_PX.
+# The dock's icons (the microphone, a result's icon as it unfolds) are the size of the icon
+# in PebbleOS's notification banner: ATTRIBUTE_ICON_TINY_SIZE_PX.
 DOCK_ICON = 25
 
 
@@ -276,12 +276,15 @@ def microphone(size=MIC_SIZE, stroke=None):
     return image(size, size, commands)
 
 
-# The cube turning at rest is 69.5px tall on its 96px canvas: scaled so it is the dock's
-# icon size. Its shapes are all fills of precise (1/8 px) paths.
-CUBE_HEIGHT = 69.5
+# The cube turning at rest is 69.5px tall on its 96px canvas; its shapes are all fills of
+# precise (1/8 px) paths. In the dock it rests 42px tall: the largest whose turns (1.06
+# times as tall) stay inside the 49px dock with 2px to spare. Its black gaps (3px in the
+# art) are then 1.8px and its thinnest stickers 1.6px; at the banner icon's 25px both fell
+# under a pixel and the cube lost its faces.
+CUBE_HEIGHT, CUBE_SIZE = 69.5, 42
 
 
-def thinking_frames(scale=DOCK_ICON / CUBE_HEIGHT):
+def thinking_frames(scale=CUBE_SIZE / CUBE_HEIGHT):
     data = (PDC / 'index-thinking-light.pdc').read_bytes()
     assert data[:4] == b'PDCS'
     _, _, width, height, _, count = struct.unpack_from('<BBhhHH', data, 8)

@@ -53,15 +53,16 @@ const BAR_COLUMN = 6;
 // the height of a PebbleOS notification's coloured banner as the firmware draws it,
 // measured on the emery emulator: 49px (the 20px status bar in the banner's colour, then
 // the 29px LAYOUT_BANNER_HEIGHT_RECT). The microphone sits at its centre, its art the size
-// of the banner's icon (25px, measured; ATTRIBUTE_ICON_TINY_SIZE_PX), as are the thinking
-// cube and a result's icon as it unfolds there.
+// of the banner's icon (25px, measured; ATTRIBUTE_ICON_TINY_SIZE_PX), as is a result's icon
+// as it unfolds there. The thinking cube is larger, 42px at rest (tools/build_assets.py):
+// smaller, its faces were lost.
 const DOCK_HEIGHT = 49, DOCK_TOP = HEIGHT - DOCK_HEIGHT, DOCK_CENTRE = DOCK_TOP + (DOCK_HEIGHT >> 1);
 // While Index thinks, the cube sits at the dock's left, under the cards' icons (their
 // cutout's centre), so a widget's icon unfolds there and flies straight up into its card.
-// The cube's art at rest sits 2px below its frames' centre: drawn 2px up it is centred in
-// the dock. Going to think, the microphone shrinks to a dot there; the cube grows out of
-// a 3px dot and folds back into one.
-const CUBE_X = CARD_MARGIN + (WIDGET_ICON >> 1), CUBE_Y = DOCK_CENTRE - 2;
+// The cube's art at rest sits 3px below its frames' centre: drawn 3px up it is centred in
+// the dock, and its turns stay inside the dock. Going to think, the microphone shrinks to a
+// dot there; the cube grows out of a 3px dot and folds back into one.
+const CUBE_X = CARD_MARGIN + (WIDGET_ICON >> 1), CUBE_Y = DOCK_CENTRE - 3;
 const MIC_DOT_SCALE = 0.12, DOT_Q8 = 256, SLIDE_MS = 220;
 // The recording's bubble: the waveform in a pill.
 const VOICE_PADDING = 12, VOICE_HEIGHT = 36;

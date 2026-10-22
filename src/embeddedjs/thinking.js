@@ -8,11 +8,11 @@ import {Animation, NORMAL_MAX, linear, now} from "motion";
 import {render, WHITE, BLACK} from "theme";
 
 // Sizes in 1/256 px, at the dock's size: the cube's frames (tools/build_assets.py) are its
-// 96px art scaled so the cube at rest is 25px tall, the notification banner's icon, and the
-// ring and square are scaled with them. The square is frame 0's (16.5px); the ring is the
-// home ring's, the default to close into.
-export const RING_RADIUS_Q8 = 1841;
-const SQUARE_RADIUS_Q8 = 2112, POP_RADIUS_Q8 = 2578;
+// 96px art scaled so the cube at rest is 42px tall (0.604 of the art), and the ring and
+// square are scaled with them. The square is frame 0's (27.8px); the ring is the home
+// ring's, the default to close into.
+export const RING_RADIUS_Q8 = 3094;
+const SQUARE_RADIUS_Q8 = 3558, POP_RADIUS_Q8 = 4332;
 const MORPH_MS = 240, REVEAL_MS = 240, TURN_MS = 380, MOVE_MS = 480, LOOP_MS = MOVE_MS * 4;
 const REVEAL_LAST_FRAME = 12, RIGHT_FIRST_FRAME = REVEAL_LAST_FRAME + 1, TURN_LAST_FRAME = 16;
 const OPENING = 0, LOOP = 1, CLOSING = 2;
@@ -26,10 +26,10 @@ function interpolate(start, end, elapsed) {
 }
 
 // The ring and its morph: a rounded square (a circle while its corner radius is its whole
-// radius) with the cube's 1px outline (the native app's 3px, scaled), drawn as the
+// radius) with the cube's 2px outline (the native app's 3px, scaled), drawn as the
 // firmware's own shape fills with the inside cleared. Working the outline out pixel by
 // pixel in JavaScript, as before, took over 100ms a frame on the watch.
-const STROKE = 1, GCORNERS_ALL = 15;
+const STROKE = 2, GCORNERS_ALL = 15;
 
 // @strip profile
 // For instrumented builds: how many collections the cube ran, the longest, and the longest
