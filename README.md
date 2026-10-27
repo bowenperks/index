@@ -14,7 +14,7 @@ the system dictation screen shows, centred. The dock is the height of a PebbleOS
 notification's coloured banner as the firmware draws it (49px, measured on the emery
 emulator: the 20px status bar in the banner's colour, then the 29px
 `LAYOUT_BANNER_HEIGHT_RECT`). The microphone and a result's icon are the banner icon's
-size (25px); the thinking cube rests 42px tall, the largest that turns inside the dock, as
+size (25px); the thinking cube rests 41px tall, the largest that turns inside the dock, as
 smaller it loses its faces. The
 time bar's clock sits where the firmware's status bar puts it (digits from row 5).
 Up/Down or a touch drag scroll the history above it. The last line of each of Index's
@@ -31,7 +31,13 @@ screen's does.
 
 The microphone's art is PebbleOS's `Pebble_80x80_Microphone.svg` (Apache-2.0, Google
 LLC), copied to `resources/svg/` and converted to a 24px PDC (25px of ink) by
-`tools/build_assets.py`, which also scales the cube's frames to 42px.
+`tools/build_assets.py`. The thinking cube is drawn at the dock's size the way PebbleOS
+draws its own icons (white body, uniform 2px black lines, round joins, every point on
+a pixel centre) by `tools/build_cube.py` from the Blender cube's geometry
+(`tools/cube-geometry.json`); it needs shapely, so it is run by hand when the cube changes.
+Its 81 frames ship as bitmaps of that drawing in Pebble's 64 colours
+(`resources/images/thinking/`), drawn natively one at a time: as vector commands the
+firmware strokes the 2px lines nearer 4px and fills the stickers in.
 
 Widget cards have no header: the card is all information. Its frame stops short of the
 bottom-left corner, leaving a cutout with no lines around it, where the widget's 36px icon

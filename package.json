@@ -247,409 +247,571 @@
           "file": "pdc/index-typing-bubble.pdc"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_00",
-          "file": "pdc/thinking/frame-00.pdc"
+          "file": "images/thinking/cube-00.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_01",
-          "file": "pdc/thinking/frame-01.pdc"
+          "file": "images/thinking/cube-01.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_02",
-          "file": "pdc/thinking/frame-02.pdc"
+          "file": "images/thinking/cube-02.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_03",
-          "file": "pdc/thinking/frame-03.pdc"
+          "file": "images/thinking/cube-03.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_04",
-          "file": "pdc/thinking/frame-04.pdc"
+          "file": "images/thinking/cube-04.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_05",
-          "file": "pdc/thinking/frame-05.pdc"
+          "file": "images/thinking/cube-05.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_06",
-          "file": "pdc/thinking/frame-06.pdc"
+          "file": "images/thinking/cube-06.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_07",
-          "file": "pdc/thinking/frame-07.pdc"
+          "file": "images/thinking/cube-07.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_08",
-          "file": "pdc/thinking/frame-08.pdc"
+          "file": "images/thinking/cube-08.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_09",
-          "file": "pdc/thinking/frame-09.pdc"
+          "file": "images/thinking/cube-09.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_10",
-          "file": "pdc/thinking/frame-10.pdc"
+          "file": "images/thinking/cube-10.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_11",
-          "file": "pdc/thinking/frame-11.pdc"
+          "file": "images/thinking/cube-11.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_12",
-          "file": "pdc/thinking/frame-12.pdc"
+          "file": "images/thinking/cube-12.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_13",
-          "file": "pdc/thinking/frame-13.pdc"
+          "file": "images/thinking/cube-13.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_14",
-          "file": "pdc/thinking/frame-14.pdc"
+          "file": "images/thinking/cube-14.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_15",
-          "file": "pdc/thinking/frame-15.pdc"
+          "file": "images/thinking/cube-15.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_16",
-          "file": "pdc/thinking/frame-16.pdc"
+          "file": "images/thinking/cube-16.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_17",
-          "file": "pdc/thinking/frame-17.pdc"
+          "file": "images/thinking/cube-17.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_18",
-          "file": "pdc/thinking/frame-18.pdc"
+          "file": "images/thinking/cube-18.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_19",
-          "file": "pdc/thinking/frame-19.pdc"
+          "file": "images/thinking/cube-19.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_20",
-          "file": "pdc/thinking/frame-20.pdc"
+          "file": "images/thinking/cube-20.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_21",
-          "file": "pdc/thinking/frame-21.pdc"
+          "file": "images/thinking/cube-21.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_22",
-          "file": "pdc/thinking/frame-22.pdc"
+          "file": "images/thinking/cube-22.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_23",
-          "file": "pdc/thinking/frame-23.pdc"
+          "file": "images/thinking/cube-23.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_24",
-          "file": "pdc/thinking/frame-24.pdc"
+          "file": "images/thinking/cube-24.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_25",
-          "file": "pdc/thinking/frame-25.pdc"
+          "file": "images/thinking/cube-25.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_26",
-          "file": "pdc/thinking/frame-26.pdc"
+          "file": "images/thinking/cube-26.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_27",
-          "file": "pdc/thinking/frame-27.pdc"
+          "file": "images/thinking/cube-27.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_28",
-          "file": "pdc/thinking/frame-28.pdc"
+          "file": "images/thinking/cube-28.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_29",
-          "file": "pdc/thinking/frame-29.pdc"
+          "file": "images/thinking/cube-29.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_30",
-          "file": "pdc/thinking/frame-30.pdc"
+          "file": "images/thinking/cube-30.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_31",
-          "file": "pdc/thinking/frame-31.pdc"
+          "file": "images/thinking/cube-31.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_32",
-          "file": "pdc/thinking/frame-32.pdc"
+          "file": "images/thinking/cube-32.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_33",
-          "file": "pdc/thinking/frame-33.pdc"
+          "file": "images/thinking/cube-33.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_34",
-          "file": "pdc/thinking/frame-34.pdc"
+          "file": "images/thinking/cube-34.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_35",
-          "file": "pdc/thinking/frame-35.pdc"
+          "file": "images/thinking/cube-35.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_36",
-          "file": "pdc/thinking/frame-36.pdc"
+          "file": "images/thinking/cube-36.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_37",
-          "file": "pdc/thinking/frame-37.pdc"
+          "file": "images/thinking/cube-37.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_38",
-          "file": "pdc/thinking/frame-38.pdc"
+          "file": "images/thinking/cube-38.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_39",
-          "file": "pdc/thinking/frame-39.pdc"
+          "file": "images/thinking/cube-39.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_40",
-          "file": "pdc/thinking/frame-40.pdc"
+          "file": "images/thinking/cube-40.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_41",
-          "file": "pdc/thinking/frame-41.pdc"
+          "file": "images/thinking/cube-41.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_42",
-          "file": "pdc/thinking/frame-42.pdc"
+          "file": "images/thinking/cube-42.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_43",
-          "file": "pdc/thinking/frame-43.pdc"
+          "file": "images/thinking/cube-43.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_44",
-          "file": "pdc/thinking/frame-44.pdc"
+          "file": "images/thinking/cube-44.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_45",
-          "file": "pdc/thinking/frame-45.pdc"
+          "file": "images/thinking/cube-45.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_46",
-          "file": "pdc/thinking/frame-46.pdc"
+          "file": "images/thinking/cube-46.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_47",
-          "file": "pdc/thinking/frame-47.pdc"
+          "file": "images/thinking/cube-47.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_48",
-          "file": "pdc/thinking/frame-48.pdc"
+          "file": "images/thinking/cube-48.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_49",
-          "file": "pdc/thinking/frame-49.pdc"
+          "file": "images/thinking/cube-49.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_50",
-          "file": "pdc/thinking/frame-50.pdc"
+          "file": "images/thinking/cube-50.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_51",
-          "file": "pdc/thinking/frame-51.pdc"
+          "file": "images/thinking/cube-51.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_52",
-          "file": "pdc/thinking/frame-52.pdc"
+          "file": "images/thinking/cube-52.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_53",
-          "file": "pdc/thinking/frame-53.pdc"
+          "file": "images/thinking/cube-53.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_54",
-          "file": "pdc/thinking/frame-54.pdc"
+          "file": "images/thinking/cube-54.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_55",
-          "file": "pdc/thinking/frame-55.pdc"
+          "file": "images/thinking/cube-55.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_56",
-          "file": "pdc/thinking/frame-56.pdc"
+          "file": "images/thinking/cube-56.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_57",
-          "file": "pdc/thinking/frame-57.pdc"
+          "file": "images/thinking/cube-57.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_58",
-          "file": "pdc/thinking/frame-58.pdc"
+          "file": "images/thinking/cube-58.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_59",
-          "file": "pdc/thinking/frame-59.pdc"
+          "file": "images/thinking/cube-59.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_60",
-          "file": "pdc/thinking/frame-60.pdc"
+          "file": "images/thinking/cube-60.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_61",
-          "file": "pdc/thinking/frame-61.pdc"
+          "file": "images/thinking/cube-61.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_62",
-          "file": "pdc/thinking/frame-62.pdc"
+          "file": "images/thinking/cube-62.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_63",
-          "file": "pdc/thinking/frame-63.pdc"
+          "file": "images/thinking/cube-63.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_64",
-          "file": "pdc/thinking/frame-64.pdc"
+          "file": "images/thinking/cube-64.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_65",
-          "file": "pdc/thinking/frame-65.pdc"
+          "file": "images/thinking/cube-65.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_66",
-          "file": "pdc/thinking/frame-66.pdc"
+          "file": "images/thinking/cube-66.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_67",
-          "file": "pdc/thinking/frame-67.pdc"
+          "file": "images/thinking/cube-67.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_68",
-          "file": "pdc/thinking/frame-68.pdc"
+          "file": "images/thinking/cube-68.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_69",
-          "file": "pdc/thinking/frame-69.pdc"
+          "file": "images/thinking/cube-69.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_70",
-          "file": "pdc/thinking/frame-70.pdc"
+          "file": "images/thinking/cube-70.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_71",
-          "file": "pdc/thinking/frame-71.pdc"
+          "file": "images/thinking/cube-71.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_72",
-          "file": "pdc/thinking/frame-72.pdc"
+          "file": "images/thinking/cube-72.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_73",
-          "file": "pdc/thinking/frame-73.pdc"
+          "file": "images/thinking/cube-73.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_74",
-          "file": "pdc/thinking/frame-74.pdc"
+          "file": "images/thinking/cube-74.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_75",
-          "file": "pdc/thinking/frame-75.pdc"
+          "file": "images/thinking/cube-75.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_76",
-          "file": "pdc/thinking/frame-76.pdc"
+          "file": "images/thinking/cube-76.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_77",
-          "file": "pdc/thinking/frame-77.pdc"
+          "file": "images/thinking/cube-77.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_78",
-          "file": "pdc/thinking/frame-78.pdc"
+          "file": "images/thinking/cube-78.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_79",
-          "file": "pdc/thinking/frame-79.pdc"
+          "file": "images/thinking/cube-79.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         },
         {
-          "type": "raw",
+          "type": "bitmap",
           "name": "INDEX_THINKING_80",
-          "file": "pdc/thinking/frame-80.pdc"
+          "file": "images/thinking/cube-80.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
         }
       ]
     }

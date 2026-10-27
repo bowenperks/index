@@ -77,6 +77,34 @@ int32_t renderCount(void) {
   return s_renders;
 }
 
+// The thinking cube's frames are bitmaps (tools/build_cube.py), drawn here with their
+// transparency. One is kept loaded at a time and freed when the next replaces it or the
+// cube goes: Alloy's own bitmaps (Poco.PebbleBitmap) never free their native memory. A
+// frame that cannot be loaded (memory) is skipped. Returns whether it drew.
+static GBitmap *s_cube;
+static int32_t s_cube_id;
+
+int32_t cubeDraw(int32_t id, int32_t x, int32_t y) {
+  if (!s_ctx) return 0;
+  if (id != s_cube_id) {
+    if (s_cube) gbitmap_destroy(s_cube);
+    s_cube = gbitmap_create_with_resource(id);
+    s_cube_id = s_cube ? id : 0;
+  }
+  if (!s_cube) return 0;
+  GRect bounds = gbitmap_get_bounds(s_cube);
+  graphics_context_set_compositing_mode(s_ctx, GCompOpSet);
+  graphics_draw_bitmap_in_rect(s_ctx, s_cube, GRect(x, y, bounds.size.w, bounds.size.h));
+  graphics_context_set_compositing_mode(s_ctx, GCompOpAssign);
+  return 1;
+}
+
+void cubeRelease(void) {
+  if (s_cube) gbitmap_destroy(s_cube);
+  s_cube = NULL;
+  s_cube_id = 0;
+}
+
 // For the scroll bench's micro-benchmark (tools/bench.c).
 GContext *scroll_context(void) {
   return s_ctx;

@@ -81,6 +81,18 @@
 			"renderLog": {
 				"arguments": [],
 				"returns": "void"
+			},
+			"cubeDraw": {
+				"arguments": [
+					"int32_t",
+					"int32_t",
+					"int32_t"
+				],
+				"returns": "int32_t"
+			},
+			"cubeRelease": {
+				"arguments": [],
+				"returns": "void"
 			}
 		}
 	}

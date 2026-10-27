@@ -1465,6 +1465,8 @@
 "css",
 "cstring",
 "ctx",
+"cubeDraw",
+"cubeRelease",
 "cubicEaseIn",
 "cubicEaseInOut",
 "cubicEaseOut",

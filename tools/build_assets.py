@@ -3,9 +3,9 @@
 
 Writes, from the committed artwork in resources/:
 
-- resources/pdc/thinking/frame-NN.pdc: the thinking cube's 81 frames as one-frame
-  sequences. The native app streams the 60 KB sequence one frame at a time; Alloy loads a
-  sequence whole, so the frames are split and each is loaded only while it is on screen.
+- the resource table entries for the thinking cube's 81 frames, bitmaps that
+  tools/build_cube.py draws (resources/images/thinking/cube-NN.png; it needs shapely, so
+  it is run by hand when the cube changes).
 - resources/pdc/index-bubble-greeting.pdc: the home screen's greeting panel, a fixed
   184 x 75 bubble with its tail (Index's original gpath outline and interior).
 - resources/pdc/index-bubble-tail.pdc: the tail of Index's reply bubbles.
@@ -276,40 +276,6 @@ def microphone(size=MIC_SIZE, stroke=None):
     return image(size, size, commands)
 
 
-# The cube turning at rest is 69.5px tall on its 96px canvas; its shapes are all fills of
-# precise (1/8 px) paths. In the dock it rests 42px tall: the largest whose turns (1.06
-# times as tall) stay inside the 49px dock with 2px to spare. Its black gaps (3px in the
-# art) are then 1.8px and its thinnest stickers 1.6px; at the banner icon's 25px both fell
-# under a pixel and the cube lost its faces.
-CUBE_HEIGHT, CUBE_SIZE = 69.5, 42
-
-
-def thinking_frames(scale=CUBE_SIZE / CUBE_HEIGHT):
-    data = (PDC / 'index-thinking-light.pdc').read_bytes()
-    assert data[:4] == b'PDCS'
-    _, _, width, height, _, count = struct.unpack_from('<BBhhHH', data, 8)
-    width, height = round(width * scale), round(height * scale)
-    offset, frames = 18, []
-    for _ in range(count):
-        _, commands = struct.unpack_from('<HH', data, offset)
-        offset += 4
-        body = b''
-        for _ in range(commands):
-            kind, hidden, stroke, stroke_width, fill, extra, points = struct.unpack_from('<5B2H', data, offset)
-            assert kind == 3, 'cube frames are precise paths'
-            coords = [struct.unpack_from('<2h', data, offset + 9 + 4 * index) for index in range(points)]
-            body += (struct.pack('<5B2H', kind, hidden, stroke, stroke_width, fill, extra, points) +
-                     b''.join(struct.pack('<2h', round(x * scale), round(y * scale)) for x, y in coords))
-            offset += 9 + 4 * points
-        # A one-frame sequence (PDCS), not an image: Alloy keeps every PDC image it has
-        # loaded cached by resource id, so 81 frame images would all stay in memory;
-        # sequences are released by the garbage collector.
-        payload = struct.pack('<BBhhHH', 1, 0, width, height, 1, 1) + struct.pack('<HH', 1, commands) + body
-        frames.append(b'PDCS' + struct.pack('<I', len(payload)) + payload)
-    assert offset == len(data)
-    return frames
-
-
 # (JavaScript name, file under resources/, type). Order is the resource id order.
 STATIC = [
     ('HOME_ICONS', 'pdc/index-home-icons-light.pdc', 'raw'),
@@ -352,10 +318,8 @@ def build():
     for name, shapes in ICONS.items():
         (PDC / f'index-widget-{name}.pdc').write_bytes(icon(shapes, 1, 2))
         (PDC / f'index-widget-{name}-large.pdc').write_bytes(icon(shapes, LARGE_SIZE / ICON_SIZE, 4))
-    frames = thinking_frames()
-    (PDC / 'thinking').mkdir(exist_ok=True)
-    for index, frame in enumerate(frames):
-        (PDC / f'thinking/frame-{index:02d}.pdc').write_bytes(frame)
+    frames = sorted((ROOT / 'resources/images/thinking').glob('cube-[0-9][0-9].png'))
+    assert len(frames) == 81, 'run tools/build_cube.py for the thinking cube'
 
     media = []
     for name, file, kind in STATIC:
@@ -364,8 +328,9 @@ def build():
             entry.update(memoryFormat='Smallest', spaceOptimization='memory')
         media.append(entry)
     for index in range(len(frames)):
-        media.append({'type': 'raw', 'name': f'INDEX_THINKING_{index:02d}',
-                      'file': f'pdc/thinking/frame-{index:02d}.pdc'})
+        media.append({'type': 'bitmap', 'name': f'INDEX_THINKING_{index:02d}',
+                      'file': f'images/thinking/cube-{index:02d}.png',
+                      'memoryFormat': 'Smallest', 'spaceOptimization': 'memory'})
     package_path = ROOT / 'package.json'
     package = json.loads(package_path.read_text())
     package['pebble']['resources'] = {'media': media}

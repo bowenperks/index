@@ -1,18 +1,17 @@
 // Index's "Thinking..." animation: a ring morphs into a square, the square unfolds into a
 // turning cube, and when the answer is ready the cube folds back and the square closes
 // into a ring, or into a dot that a widget's icon then unfolds out of.
-import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {THINKING_FIRST} from "assets";
 import {Animation, NORMAL_MAX, linear, now} from "motion";
 import {render, WHITE, BLACK} from "theme";
 
-// Sizes in 1/256 px, at the dock's size: the cube's frames (tools/build_assets.py) are its
-// 96px art scaled so the cube at rest is 42px tall (0.604 of the art), and the ring and
-// square are scaled with them. The square is frame 0's (27.8px); the ring is the home
-// ring's, the default to close into.
-export const RING_RADIUS_Q8 = 3094;
-const SQUARE_RADIUS_Q8 = 3558, POP_RADIUS_Q8 = 4332;
+// Sizes in 1/256 px, at the dock's size: the cube's frames (tools/build_cube.py) are drawn
+// at it, the cube 41px tall at rest, and the ring and square match them. The square is
+// frame 0's (39px across its 2px outline); the ring is the home ring's, the default to
+// close into, in the proportions the original art had (ring 20, square 23, pop 28).
+export const RING_RADIUS_Q8 = 4342;
+const SQUARE_RADIUS_Q8 = 4992, POP_RADIUS_Q8 = 6077;
 const MORPH_MS = 240, REVEAL_MS = 240, TURN_MS = 380, MOVE_MS = 480, LOOP_MS = MOVE_MS * 4;
 const REVEAL_LAST_FRAME = 12, RIGHT_FIRST_FRAME = REVEAL_LAST_FRAME + 1, TURN_LAST_FRAME = 16;
 const OPENING = 0, LOOP = 1, CLOSING = 2;
@@ -26,18 +25,19 @@ function interpolate(start, end, elapsed) {
 }
 
 // The ring and its morph: a rounded square (a circle while its corner radius is its whole
-// radius) with the cube's 2px outline (the native app's 3px, scaled), drawn as the
+// radius) with the cube's 2px outline, drawn as the
 // firmware's own shape fills with the inside cleared. Working the outline out pixel by
 // pixel in JavaScript, as before, took over 100ms a frame on the watch.
 const STROKE = 2, GCORNERS_ALL = 15;
+const CUBE_HALF = 25;   // the frames' 50px canvas, the cube centred in it
 
 // @strip profile
-// For instrumented builds: how many collections the cube ran, the longest, and the longest
-// frame load, since the last reading.
-let collections = 0, collectionMax = 0, loadMax = 0;
+// For instrumented builds: the longest frame draw (a frame change loads its bitmap) since
+// the last reading, in the place main.js reads it.
+let loadMax = 0;
 export function cubeStats() {
-  const stats = [collections, collectionMax, loadMax];
-  collections = collectionMax = loadMax = 0;
+  const stats = [0, 0, loadMax];
+  loadMax = 0;
   return stats;
 }
 // @endstrip
@@ -73,8 +73,6 @@ export default class Thinking {
     this.initialRadius = radiusQ8;
     this.closeRadius = RING_RADIUS_Q8;
     this.stopRequested = false;
-    this.frameIndex = -1;
-    this.loads = 0;
     this.startStage(OPENING);
     return true;
   }
@@ -110,9 +108,8 @@ export default class Thinking {
     this.animation?.unschedule();
     this.animation = undefined;
     this.active = false;
-    this.frame = undefined;
-    // The last frames' native memory, freed before the icon's unfold starts cloning art:
-    // without this the app ran out of memory over a few turns.
+    // The last frame's bitmap, freed before the icon's unfold starts cloning art.
+    Natives.cubeRelease();
     Debug.gc();
   }
 
@@ -153,34 +150,15 @@ export default class Thinking {
       const step = Math.min(TURN_LAST_FRAME, Math.trunc((elapsed % MOVE_MS) * TURN_LAST_FRAME / TURN_MS));
       index = RIGHT_FIRST_FRAME + move * (TURN_LAST_FRAME + 1) + step;
     }
-    // Sequence storage is native memory, so XS cannot see its allocation pressure. The
-    // previous frames (~1 KB each) are collected every second frame change, a 2ms pause on
-    // the watch, which keeps at most 2 KB of them outstanding (the voice build, with its
-    // dictation session, has only ~8 KB free; the app ran out and crashed with less care).
-    if (index !== this.frameIndex) {
-      this.frame = undefined;
-      if (++this.loads % 2 === 0) {
-        // @strip profile
-        const started = now();
-        // @endstrip
-        Debug.gc();
-        // @strip profile
-        const took = now() - started;
-        collections++;
-        if (took > collectionMax) collectionMax = took;
-        // @endstrip
-      }
-      // @strip profile
-      const started = now();
-      // @endstrip
-      this.frame = new Poco.PebbleDrawCommandSequence(THINKING_FIRST + index);
-      // @strip profile
-      const took = now() - started;
-      if (took > loadMax) loadMax = took;
-      // @endstrip
-      this.frame.time = 0;
-      this.frameIndex = index;
-    }
-    render.drawDCI(this.frame, cx - (this.frame.width >> 1), cy - (this.frame.height >> 1));
+    // The frames are bitmaps (tools/build_cube.py) drawn natively (scroll.c), which keeps
+    // just the one on screen loaded: no garbage for XS to collect.
+    // @strip profile
+    const started = now();
+    // @endstrip
+    Natives.cubeDraw(THINKING_FIRST + index, cx - CUBE_HALF, cy - CUBE_HALF);
+    // @strip profile
+    const took = now() - started;
+    if (took > loadMax) loadMax = took;
+    // @endstrip
   }
 }
