@@ -27,8 +27,10 @@ left-aligned, every line, and optically centred: as many empty rows above its fi
 line's capitals as below its last line's baseline, which in a card is the top of its
 corner icon's ink.
 
-Asking turns the dock blue, its divider's dots, white, becoming the recording's waveform:
-each grows up and down from its place as the voice comes in from the right. Then
+Asking opens the bubble into the dock, all blue, and the recording's waveform squashes
+and stretches in: white bars on the middle 31 of the divider's dots, one tall bar at the
+middle spreading out, flattening, past its width and back; each grows up and down from
+its place as the voice comes in from the right. Then
 the whole transcribed message is pushed in from the bottom at once, and while Index
 thinks, the thinking cube grows out of a dot where the microphone was, the divider parted
 around it. When the result comes in, it takes the words' place: the history keeps

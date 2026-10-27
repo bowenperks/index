@@ -19,7 +19,7 @@ import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
-import {drawMic, Waveform} from "mic";
+import {drawMic, Waveform, BARS as WAVE_BARS} from "mic";
 import {history} from "prompts";
 // @strip profile
 import {stats} from "theme";
@@ -88,6 +88,16 @@ const CUBE_Y = BUBBLE_Y, CUBE_CLEAR = 22, CUBE_FRAME = 25, DOT_Q8 = 256;
 const FLOAT_TOP = CUBE_Y - CUBE_FRAME, FLOAT_LEFT = DOCK_X - CUBE_FRAME - 1;
 const FLOAT_RIGHT = DOCK_X + CUBE_FRAME + 1;
 const SHRINK_MS = 220;
+// Asking, the bubble opens into the blue dock (EXPAND_MS, a rounded rectangle from the
+// bubble's square to the dock, its corners from round to square), then the waveform
+// squashes and stretches in (ENTER_MS): first a sliver of its middle ENTER_SLIVER bars
+// stretches up, ENTER_REACH rows taller (ENTER_STRETCH of the time, eased out); then it
+// spreads to its 31 bars, past them and back (an ease-out-back), flattening as it goes.
+// Its bars sit on the middle 31 of the divider's dots.
+const EXPAND_MS = 300, ENTER_MS = 500, ENTER_STRETCH = 0.3, ENTER_SLIVER = 2;
+const ENTER_REACH = 12, ENTER_BACK = 1.70158;
+const WAVE_HALF = WAVE_BARS >> 1;
+const WAVE_LEFT = DIVIDER_LEFT + ((DIVIDER_DOTS - WAVE_BARS) >> 1) * DIVIDER_PITCH;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
@@ -291,7 +301,34 @@ export default class Chat {
     this.beginTurn(question, answer);
     this.phase = "listening";
     this.waveform = new Waveform();
-    this.invalidateDock();
+    this.expand = 0;
+    this.waveHalf = -1;
+    this.listenAnimation = new Animation(EXPAND_MS, easeInOut, progress => {
+      this.expand = progress;
+      this.invalidateDock();
+    }, () => {
+      this.expand = NORMAL_MAX;
+      this.listenAnimation = new Animation(ENTER_MS, linear, progress => {
+        const t = progress / NORMAL_MAX;
+        if (t < ENTER_STRETCH) {
+          // The stretch: the sliver grows tall.
+          const up = t / ENTER_STRETCH;
+          this.waveHalf = ENTER_SLIVER;
+          this.waveExtra = Math.round(ENTER_REACH * (1 - (1 - up) * (1 - up)));
+        } else {
+          // The squash: an ease-out-back, past the end and back.
+          const u = (t - ENTER_STRETCH) / (1 - ENTER_STRETCH) - 1;
+          const out = 1 + (ENTER_BACK + 1) * u * u * u + ENTER_BACK * u * u;
+          this.waveHalf = ENTER_SLIVER + Math.round((WAVE_HALF - ENTER_SLIVER) * out);
+          this.waveExtra = Math.round(ENTER_REACH * Math.max(0, 1 - out));
+        }
+        this.invalidateDock();
+      }, () => {
+        this.waveHalf = WAVE_HALF;
+        this.waveExtra = 0;
+        this.invalidateDock();
+      }).schedule();
+    }).schedule();
     this.waveTimer = setInterval(() => {
       this.waveform.step();
       this.invalidateDock();
@@ -335,6 +372,8 @@ export default class Chat {
   transcribe() {
     if (this.waveTimer !== undefined) clearInterval(this.waveTimer);
     this.waveTimer = undefined;
+    this.listenAnimation?.unschedule();
+    this.listenAnimation = undefined;
     this.waveform = undefined;
     this.phase = "transcribing";
     this.invalidateDock();
@@ -1026,19 +1065,26 @@ export default class Chat {
     render.fillRectangle(WHITE, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
     const phase = this.phase;
     if (phase === "listening") {
-      render.fillRectangle(VIVID_CERULEAN, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
-      this.waveform?.draw(DIVIDER_LEFT, BAR_TOP, WHITE);
+      const open = this.expand;
+      if (open < NORMAL_MAX) {
+        // The bubble opening into the dock, over the divider.
+        this.drawDivider(BUBBLE_RADIUS + DIVIDER_GAP);
+        const left = DOCK_X - BUBBLE_RADIUS, top = BUBBLE_Y - BUBBLE_RADIUS, size = 2 * BUBBLE_RADIUS;
+        const x = left - Math.trunc(left * open / NORMAL_MAX);
+        const y = top - Math.trunc((top - DOCK_TOP) * open / NORMAL_MAX);
+        const w = size + Math.trunc((WIDTH - size) * open / NORMAL_MAX);
+        const h = size + Math.trunc((DOCK_HEIGHT - size) * open / NORMAL_MAX);
+        const radius = BUBBLE_RADIUS - Math.trunc(BUBBLE_RADIUS * open / NORMAL_MAX);
+        render.drawRoundRect(x, y, w, h, VIVID_CERULEAN, radius, GCORNERS_ALL);
+      } else {
+        render.fillRectangle(VIVID_CERULEAN, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
+      }
+      if (this.waveHalf >= 0) this.waveform?.draw(WAVE_LEFT, BAR_TOP, WHITE, this.waveHalf, this.waveExtra);
       return;
     }
     const bubble = phase === "idle" || phase === "transcribing" || phase === "shrinking" ||
                    phase === "regrowing";
-    const clear = (bubble ? BUBBLE_RADIUS : CUBE_CLEAR) + DIVIDER_GAP;
-    for (let index = 0; index < DIVIDER_DOTS; index++) {
-      const x = DIVIDER_LEFT + index * DIVIDER_PITCH;
-      if (x + DIVIDER_DOT <= DOCK_X - clear || x > DOCK_X + clear) {
-        render.fillRectangle(DARK_GRAY, x, BAR_TOP, DIVIDER_DOT, DIVIDER_DOT);
-      }
-    }
+    this.drawDivider((bubble ? BUBBLE_RADIUS : CUBE_CLEAR) + DIVIDER_GAP);
     if (this.thinking.active) {
       this.thinking.draw(DOCK_X, CUBE_Y);
     } else if (phase === "shrinking") {
@@ -1047,6 +1093,16 @@ export default class Chat {
       render.drawCircle(VIVID_CERULEAN, DOCK_X, BUBBLE_Y, BUBBLE_RADIUS);
       if (phase === "regrowing") this.micUnfold.draw();
       else drawMic(DOCK_X, BUBBLE_Y);
+    }
+  }
+
+  // The divider's dots, but for those within `clear` of the middle.
+  drawDivider(clear) {
+    for (let index = 0; index < DIVIDER_DOTS; index++) {
+      const x = DIVIDER_LEFT + index * DIVIDER_PITCH;
+      if (x + DIVIDER_DOT <= DOCK_X - clear || x > DOCK_X + clear) {
+        render.fillRectangle(DARK_GRAY, x, BAR_TOP, DIVIDER_DOT, DIVIDER_DOT);
+      }
     }
   }
 
