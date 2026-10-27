@@ -114,14 +114,13 @@ const OPEN_MS = RIPPLE_DELAY + WAVE_HALF * RIPPLE_STAGGER + RIPPLE_MS;
 // page as it (LIFT_MS), the waveform drawing back into its middle over the first WAVE_OUT
 // of the way (of NORMAL_MAX).
 const LIFT_MS = 300, WAVE_OUT = NORMAL_MAX * 2 / 5 | 0;
-// As the result comes in, the user's words go as an unsent message does in iOS Messages,
-// in a puff (POOF_MS): the words fade as the bubble draws in a little (POOF_WORDS_MS),
-// then the bubble falls in on its middle, eased in (POOF_COLLAPSE_MS), paling for the
-// last of it (from POOF_PALE of the way), bursting into bits of its blue (one for every
-// POOF_AREA square pixels of it, POOF_MIN to POOF_MAX, from all over it) that drift out up
-// to POOF_SPREAD and up to POOF_RISE more, eased out, shrinking and paling into the page.
-const POOF_MS = 500, POOF_WORDS_MS = 90, POOF_COLLAPSE_MS = 240, POOF_PALE = 0.55;
-const POOF_AREA = 70, POOF_MIN = 40, POOF_MAX = 160, POOF_SPREAD = 22, POOF_RISE = 8;
+// As the result comes in, the user's words go much as an unsent message does in iOS
+// Messages (POOF_MS): the words fade as the bubble draws in a little (POOF_WORDS_MS),
+// then the bubble falls in on its middle, eased in, and is gone (POOF_COLLAPSE_MS),
+// paling for the last of it (from POOF_PALE of the way). No particles: they are not
+// Pebble's.
+const POOF_WORDS_MS = 90, POOF_COLLAPSE_MS = 240, POOF_MS = POOF_WORDS_MS + POOF_COLLAPSE_MS;
+const POOF_PALE = 0.55;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
@@ -497,40 +496,25 @@ export default class Chat {
     this.pending = [index, item];
     const flying = item.widget &&
       this.transition.start(WIDGETS[item.widget][1], DOCK_X, CUBE_Y, undefined, false, DOCK_X, CUBE_Y);
-    // The question goes in a puff just before the result arrives (only its band
+    // The question falls in on itself just before the result arrives (only its band
     // repainting); a flying icon lands the result itself, as its flight begins.
     this.timer = setTimeout(() => this.poofQuery(this.items[index], () => {
       if (!flying) this.landResult();
     }), flying ? UNFOLD_MS + HOLD_MS - POOF_MS : 0);
   }
 
-  // The user's words go in a puff (POOF_MS), then `done()`: the entry is hidden at once and
-  // its bubble drawn by drawPoof until it has gone. Each bit of the puff is four numbers
-  // (page coordinates): where it starts, inside the bubble's rounded corners, and how far
-  // it drifts, out from the bubble's middle and up.
+  // The user's words go (POOF_MS), then `done()`: the entry is hidden at once and
+  // its bubble drawn by drawPoof until it has gone.
   poofQuery(query, done) {
     const {x, y, w, h} = query;
     query.shade = 0;
-    const count = Math.max(POOF_MIN, Math.min(POOF_MAX, w * h / POOF_AREA | 0));
-    const bits = new Int16Array(count * 4);
-    const cx = x + (w >> 1), cy = y + (h >> 1);
-    for (let index = 0; index < bits.length; index += 4) {
-      const bx = x + 4 + Math.random() * (w - 8) | 0, by = y + 4 + Math.random() * (h - 8) | 0;
-      const dx = bx - cx, dy = by - cy, length = Math.sqrt(dx * dx + dy * dy) || 1;
-      const reach = POOF_SPREAD * (0.5 + Math.random() * 0.8);
-      bits[index] = bx;
-      bits[index + 1] = by;
-      bits[index + 2] = dx * reach / length + (Math.random() - 0.5) * 8 | 0;
-      bits[index + 3] = dy * reach / length / 2 - POOF_RISE * (0.5 + Math.random() / 2) | 0;
-    }
-    const poof = this.poof = {x, y, w, h, lines: query.lines, bits, time: 0};
-    const top = y - POOF_SPREAD - POOF_RISE - 4, bottom = y + h + POOF_SPREAD + 4;
+    const poof = this.poof = {x, y, w, h, lines: query.lines, time: 0};
     new Animation(POOF_MS, linear, progress => {
       poof.time = progress * POOF_MS / NORMAL_MAX | 0;
-      this.invalidateArea(top, bottom);
+      this.invalidateArea(y, y + h);
     }, () => {
       this.poof = undefined;
-      this.invalidateArea(top, bottom);
+      this.invalidateArea(y, y + h);
       done();
     }).schedule();
   }
@@ -1059,7 +1043,7 @@ export default class Chat {
     if (bottom > FLOAT_TOP) this.drawDock();
     // The user's bubble rising out of the dock into the page.
     if (this.lift) this.drawLift();
-    // The user's words going in a puff as the result comes in.
+    // The user's words going as the result comes in.
     if (this.poof) this.drawPoof();
     // The result's icon: unfolding and holding in the dock, or flying up the page into its
     // card.
@@ -1086,7 +1070,7 @@ export default class Chat {
                y + ((DAY_HEIGHT - DAY_CAP) >> 1) - DAY_CAP_TOP);
     } else if (item.type === "query") {
       // The user's words: a solid pill with no tail, so it never reads as Index. As the
-      // result comes in it goes in a puff (drawPoof).
+      // result comes in it falls in on itself (drawPoof).
       const step = shade >= 255 ? 3 : shade * 3 / 255 | 0;
       if (!step) return;
       render.drawRoundRect(x, y, w, h, FADE_BLUES[step - 1], PILL_RADIUS, GCORNERS_ALL);
@@ -1234,37 +1218,23 @@ export default class Chat {
     if (lift.half >= 0) this.waveform?.draw(WAVE_LEFT, ((lift.top + lift.bottom) >> 1) - 1, WHITE, lift.half);
   }
 
-  // The user's words going in a puff (poofQuery): the bubble, drawing in a little as its
-  // words fade, then falling in on its middle; the bits of its blue, the same blue at
-  // first and hidden on it, showing as it falls in, drifting off as they shrink and pale.
-  // None show over the time bar or the dock.
+  // The user's words going (poofQuery): the bubble, drawing in a little as its
+  // words fade, then falling in on its middle, paling for the last of it.
   drawPoof() {
-    const poof = this.poof, time = poof.time, offset = this.offset, top = poof.y - offset;
-    if (time < POOF_WORDS_MS + POOF_COLLAPSE_MS) {
-      // The bubble's size, in 256ths: 256 to 248 as the words fade, then down to nothing.
-      const fall = (time - POOF_WORDS_MS) / POOF_COLLAPSE_MS;
-      const scale = time < POOF_WORDS_MS ? 256 - (8 * time / POOF_WORDS_MS | 0) : 248 * (1 - fall * fall) | 0;
-      const w = poof.w * scale >> 8, h = poof.h * scale >> 8;
-      if (w > 0 && h > 0) {
-        render.drawRoundRect(poof.x + ((poof.w - w) >> 1), top + ((poof.h - h) >> 1), w, h,
-                             fall > POOF_PALE ? FADE_BLUES[1] : VIVID_CERULEAN,
-                             Math.min(PILL_RADIUS, w >> 1, h >> 1), GCORNERS_ALL);
-      }
-      if (time < POOF_WORDS_MS) {
-        const step = time * 3 / POOF_WORDS_MS | 0;
-        this.drawLines(poof.lines, step ? FADE_BLUES[step - 1] : WHITE, poof.x + 8,
-                       top + 1 + BUBBLE_TEXT_GAP - this.textTop);
-        return;
-      }
+    const poof = this.poof, time = poof.time, top = poof.y - this.offset;
+    // The bubble's size, in 256ths: 256 to 248 as the words fade, then down to nothing.
+    const fall = (time - POOF_WORDS_MS) / POOF_COLLAPSE_MS;
+    const scale = time < POOF_WORDS_MS ? 256 - (8 * time / POOF_WORDS_MS | 0) : 248 * (1 - fall * fall) | 0;
+    const w = poof.w * scale >> 8, h = poof.h * scale >> 8;
+    if (w > 0 && h > 0) {
+      render.drawRoundRect(poof.x + ((poof.w - w) >> 1), top + ((poof.h - h) >> 1), w, h,
+                           fall > POOF_PALE ? FADE_BLUES[1] : VIVID_CERULEAN,
+                           Math.min(PILL_RADIUS, w >> 1, h >> 1), GCORNERS_ALL);
     }
-    const life = (time - POOF_WORDS_MS) / (POOF_MS - POOF_WORDS_MS), drift = 1 - (1 - life) * (1 - life);
-    const size = life < 0.5 ? 3 : life < 0.8 ? 2 : 1;
-    const color = life < 0.45 ? VIVID_CERULEAN : FADE_BLUES[life < 0.75 ? 1 : 0];
-    const header = this.headerHeight, bits = poof.bits;
-    for (let index = 0; index < bits.length; index += 4) {
-      const bx = bits[index] + (bits[index + 2] * drift | 0);
-      const by = bits[index + 1] - offset + (bits[index + 3] * drift | 0);
-      if (by >= header && by + size <= PAGE_BOTTOM) render.fillRectangle(color, bx, by, size, size);
+    if (time < POOF_WORDS_MS) {
+      const step = time * 3 / POOF_WORDS_MS | 0;
+      this.drawLines(poof.lines, step ? FADE_BLUES[step - 1] : WHITE, poof.x + 8,
+                     top + 1 + BUBBLE_TEXT_GAP - this.textTop);
     }
   }
 
