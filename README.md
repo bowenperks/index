@@ -42,8 +42,10 @@ the waveform draws back into its middle and the blue bubble becomes the whole tr
 message: it takes the user's bubble's shape and pushes itself up into the page, the page
 going up ahead of it, its top edge leading and its bottom following, and its words show,
 from blue to white. While Index thinks, the thinking cube grows out of a dot where the
-microphone was, in the divider's gap. When the result comes in, it takes the words' place: the history keeps
-results, not questions. A widget's icon unfolds out of the cube's dot (after the
+microphone was, in the divider's gap. When the result comes in, the user's words go in a
+puff, as an unsent message does in iOS Messages: the words fade, the bubble falls in on
+its middle and bursts into bits of its blue that drift off, shrinking and paling. The
+result takes their place: the history keeps results, not questions. A widget's icon unfolds out of the cube's dot (after the
 notification peek), then flies up into its card as the card rises in. The microphone
 then unfolds in its bubble out of a dot, as the dictation screen's does.
 
