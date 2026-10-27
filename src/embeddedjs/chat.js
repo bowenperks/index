@@ -3,10 +3,11 @@
 // divider across the screen with the voice input, Pebble's microphone in a blue bubble,
 // sitting on it. The page opens on the newest results.
 //
-// Asking turns the bar under the divider blue, the recording's waveform running across it
-// in white; then the whole transcribed message is pushed in from the bottom, and the
-// thinking cube grows where the microphone was. When the result comes in it takes the
-// words' place, so the history keeps results rather than questions.
+// Asking opens the microphone's bubble across the divider, the recording's waveform
+// running along it in white; then that bubble becomes the user's whole message, pushing
+// itself up into the page, and the thinking cube grows where the microphone was. When the
+// result comes in it takes the words' place, so the history keeps results rather than
+// questions.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
@@ -58,12 +59,15 @@ const STATUS_DIGITS_TOP = 5;
 const BAR_COLUMN = 6;
 // The dock: the screen's bottom 49px, below the page. Across it, the Weather app's
 // mainscreen divider (45 Dark Gray dots, 2px square, 4px apart, centred: weather_app_
-// layout.c), 20px down; on it, centred, the microphone in a blue bubble (Index blue, 37px
-// across), black with its capsule white inside, the banner icon's 25px. The divider stops
-// short of the bubble, DIVIDER_GAP clear of it. Below the divider is the bar, the 29px of
+// layout.c), 20px down; on it, centred, the microphone in a blue bubble (Index blue, 36px
+// across), black with its capsule white inside, filling the bubble but for 4 rows above
+// and below (mic.js). The divider's
+// middle third (DIVIDER_SIDE dots each side of it) is left out, always the same, whatever
+// sits there: room for the largest, a result's icon unfolding past the cube's size, 4px
+// clear of it (FLOAT_REACH). Below the divider is the bar, the 29px of
 // a PebbleOS notification's banner under its status bar (LAYOUT_BANNER_HEIGHT_RECT),
-// white. While the user speaks the whole dock turns blue (the notification banner's 49px)
-// and the divider's dots, white, are the recording's waveform: each grows up and down from
+// white. While the user speaks the bubble opens across the divider (below) and the
+// divider's middle dots, white, are the recording's waveform: each grows up and down from
 // its place as the voice comes in from the right (mic.js).
 // The page draws down to the top of the dock (PAGE_BOTTOM) and rests a GAP above it, its
 // last entry and every Up / Down stop, so the rows above the divider stay clear, as drawn;
@@ -73,24 +77,23 @@ const BAR_COLUMN = 6;
 const DOCK_HEIGHT = 49, DOCK_TOP = HEIGHT - DOCK_HEIGHT;
 const BAR_HEIGHT = 29, BAR_TOP = HEIGHT - BAR_HEIGHT;
 const PAGE_BOTTOM = DOCK_TOP;
-const DIVIDER_DOTS = 45, DIVIDER_PITCH = 4, DIVIDER_DOT = 2, DIVIDER_GAP = 4;
+const DIVIDER_DOTS = 45, DIVIDER_PITCH = 4, DIVIDER_DOT = 2, DIVIDER_SIDE = 15;
 const DIVIDER_LEFT = (WIDTH - ((DIVIDER_DOTS - 1) * DIVIDER_PITCH + DIVIDER_DOT)) >> 1;
 // The bubble's centre: Poco's drawCircle fills the 36px square from (x - r, y - r), so its
 // middle is the edge between rows y - 1 and y, which is the 2px divider's middle (rows
 // BAR_TOP and BAR_TOP + 1): 17 rows of bubble above the divider and 17 below.
 const DOCK_X = WIDTH >> 1, BUBBLE_Y = BAR_TOP + 1, BUBBLE_RADIUS = 18;
-// While Index thinks, the cube takes the bubble's place, centred on the divider too: the
-// bubble shrinks to a 3px dot, the cube grows out of it and folds back into one, which a
-// widget's icon unfolds out of, as big as the cube (tools/build_assets.py dock_icon), before
-// it flies up into its card. The divider then stops CUBE_CLEAR (ICON_CLEAR for the icon,
-// past its unfold's overshoot) and the gap from the centre. 41px at rest, 45px as it turns
-// (tools/build_cube.py): smaller, the cube lost its faces. FLOAT_REACH is the furthest
-// either reaches from the centre: the largest icon's 46px canvas, 4px past it unfolding.
-const CUBE_Y = BUBBLE_Y, CUBE_CLEAR = 22, ICON_CLEAR = 24, DOT_Q8 = 256;
+// While Index thinks, the cube takes the bubble's place, centred on the divider too: once
+// the user's bubble has risen out of the dock, the cube grows out of a 3px dot there and
+// folds back into one, which a widget's icon unfolds out of, as big as the cube
+// (tools/build_assets.py dock_icon), before it flies up into its card. 41px at rest, 45px
+// as it turns (tools/build_cube.py): smaller, the cube lost its faces. FLOAT_REACH is the
+// furthest either reaches from the centre: the largest icon's 46px canvas, 4px past it
+// unfolding.
+const CUBE_Y = BUBBLE_Y, DOT_Q8 = 256;
 const FLOAT_REACH = 27;
 const FLOAT_TOP = CUBE_Y - FLOAT_REACH, FLOAT_LEFT = DOCK_X - FLOAT_REACH - 1;
 const FLOAT_RIGHT = DOCK_X + FLOAT_REACH + 1;
-const SHRINK_MS = 220;
 // Asking, the bubble opens sideways into a rectangular bubble as wide as the divider and
 // as tall as the microphone's bubble (EXPAND_MS, its corners from the circle's to the
 // user's bubbles' PILL_RADIUS), then the waveform squashes and stretches in (ENTER_MS):
@@ -103,10 +106,14 @@ const LISTEN_WIDTH = (DIVIDER_DOTS - 1) * DIVIDER_PITCH + DIVIDER_DOT;
 const ENTER_REACH = 12, ENTER_BACK = 1.70158;
 const WAVE_HALF = WAVE_BARS >> 1;
 const WAVE_LEFT = DIVIDER_LEFT + ((DIVIDER_DOTS - WAVE_BARS) >> 1) * DIVIDER_PITCH;
+// The words in, that bubble conforms to the user's bubble and pushes itself up into the
+// page as it (LIFT_MS), the waveform drawing back into its middle over the first WAVE_OUT
+// of the way (of NORMAL_MAX).
+const LIFT_MS = 300, WAVE_OUT = Math.trunc(NORMAL_MAX * 2 / 5);
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
-const WAVE_STEP = 70, THINK_AFTER = 300, THINK_MIN = 800;
+const WAVE_STEP = 70, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
 // On Up and Down, a card's icon travels as Timeline's pin icons do: its trailing edge
 // sets off a sixth of the way through (Timeline's point duration), so the icon stretches
@@ -136,6 +143,16 @@ let hooked = false;
 // card's body: no garbage per card per frame.
 const span = [0, 0];
 const body = {x: 0, y: 0, w: 0};
+
+// The recording's bubble `open` (0 to NORMAL_MAX) of the way from the microphone's circle
+// to the divider's width: its left edge, width and corner radius, into `shape`.
+const shape = [0, 0, 0];
+function openShape(open) {
+  const left = DOCK_X - BUBBLE_RADIUS, size = 2 * BUBBLE_RADIUS;
+  shape[0] = left - Math.trunc((left - DIVIDER_LEFT) * open / NORMAL_MAX);
+  shape[1] = size + Math.trunc((LISTEN_WIDTH - size) * open / NORMAL_MAX);
+  shape[2] = BUBBLE_RADIUS - Math.trunc((BUBBLE_RADIUS - PILL_RADIUS) * open / NORMAL_MAX);
+}
 
 export default class Chat {
   // `talk()` is a tap on the microphone.
@@ -274,13 +291,6 @@ export default class Chat {
     this.invalidate();
   }
 
-  // Adds an entry at the bottom and scrolls it in, pushing the page up.
-  push(item) {
-    this.items.push(item);
-    this.layout();
-    this.setOffset(this.maxOffset, true);
-  }
-
   // Keeps the history to its capacity, oldest first, without leaving a day label alone.
   // The page keeps its place: what was on screen stays there.
   trim() {
@@ -299,11 +309,11 @@ export default class Chat {
     return this.phase !== "idle";
   }
 
-  // The playtest: records for `ms`, the waveform running in the dock's blue bar, then
+  // The playtest: records for `ms`, the waveform running in the dock's blue bubble, then
   // transcribes `question`. `answer` ({widget, text}) is Index's result, known up front.
   listen(question, ms, answer) {
     if (this.busy || !this.visible) return false;
-    this.beginTurn(question, answer);
+    this.beginTurn(question, answer, true);
     this.phase = "listening";
     this.waveform = new Waveform();
     this.expand = 0;
@@ -351,16 +361,20 @@ export default class Chat {
   // A request already transcribed by the system's dictation.
   ask(question, answer) {
     if (this.busy || !question || !question.trim()) return false;
-    this.beginTurn(question, answer);
+    this.beginTurn(question, answer, false);
     this.transcribe();
     return true;
   }
 
-  beginTurn(question, answer) {
+  // A turn starts at the end of the page, where the user's words come in: the page goes
+  // there as the bubble opens (`animated`), or at once after dictation, and any Up / Down
+  // step stops.
+  beginTurn(question, answer, animated) {
     this.question = question;
     this.answer = answer;
     this.query = this.prepared = undefined;
     this.trim();
+    this.setOffset(this.maxOffset, animated);
   }
 
   prepareQuery() {
@@ -372,31 +386,63 @@ export default class Chat {
     this.prepared ??= this.makeResult(this.answer.widget, this.answer.text);
   }
 
-  // The recording becomes the user's whole message at once, pushed in from the bottom, the
-  // bar white again; then Index thinks.
+  // The recording becomes the user's whole message: the blue bubble in the dock (the
+  // recording's, or the microphone's when the system's dictation recorded) conforms to the
+  // user's bubble and pushes itself up into the page as it, the page going up ahead of its
+  // top edge, the divider showing again under it. The top edge leads and the bottom
+  // follows, as a Timeline pin's edges do, so the bubble stretches as it rises. Landed, it
+  // is the message's entry: its words show, from the bubble's blue to white, and Index
+  // thinks.
   transcribe() {
     if (this.waveTimer !== undefined) clearInterval(this.waveTimer);
     this.waveTimer = undefined;
     this.listenAnimation?.unschedule();
     this.listenAnimation = undefined;
-    this.waveform = undefined;
+    const listening = this.phase === "listening";
+    openShape(listening ? this.expand : 0);
+    const x = shape[0], w = shape[1], radius = shape[2], half = listening ? this.waveHalf : -1;
     this.phase = "transcribing";
-    this.invalidateDock();
     this.prepareQuery();
-    this.push(this.query);
-    this.timer = setTimeout(() => this.shrink(), THINK_AFTER);
-  }
-
-  // Index starts thinking: the microphone goes, and its bubble shrinks to a dot, out of
-  // which the cube grows.
-  shrink() {
-    this.phase = "shrinking";
-    const from = BUBBLE_RADIUS << 8;
-    this.bubbleQ8 = from;
-    new Animation(SHRINK_MS, easeInOut, progress => {
-      this.bubbleQ8 = from - Math.trunc((from - DOT_Q8) * progress / NORMAL_MAX);
+    // The entry is on the page from the start, hidden while the bubble rising is drawn.
+    const query = this.query;
+    query.shade = 0;
+    query.textColor = VIVID_CERULEAN;
+    this.items.push(query);
+    this.layout();
+    const from = this.offset, to = this.maxOffset;
+    const top = query.y - to, bottom = top + query.h;
+    const startTop = BUBBLE_Y - BUBBLE_RADIUS, startBottom = startTop + 2 * BUBBLE_RADIUS;
+    const lift = this.lift = {x, w, radius, half, top: startTop, bottom: startBottom, drawnTop: startTop};
+    new Animation(LIFT_MS, linear, progress => {
+      const lead = easeInOut(segmented(progress, 0, 2, STRETCH_POINT));
+      const trail = easeInOut(segmented(progress, 1, 2, STRETCH_POINT));
+      const both = easeInOut(progress);
+      lift.top = startTop + Math.trunc((top - startTop) * lead / NORMAL_MAX);
+      lift.bottom = startBottom + Math.trunc((bottom - startBottom) * trail / NORMAL_MAX);
+      lift.x = x + Math.trunc((query.x - x) * both / NORMAL_MAX);
+      lift.w = w + Math.trunc((query.w - w) * both / NORMAL_MAX);
+      lift.radius = radius + Math.trunc((PILL_RADIUS - radius) * both / NORMAL_MAX);
+      lift.half = half >= 0 && progress < WAVE_OUT ? Math.trunc(half * (WAVE_OUT - progress) / WAVE_OUT) : -1;
+      this.offsetChanged(from + Math.trunc((to - from) * lead / NORMAL_MAX));
       this.invalidateDock();
-    }, () => this.startThinking()).schedule();
+    }, () => {
+      // The entry takes the bubble's place, exactly where it landed; the next frame paints
+      // it there and over where the bubble was last drawn (floatTop).
+      this.landed = lift.drawnTop;
+      this.landedTop = lift.top;
+      this.lift = this.waveform = undefined;
+      query.shade = 255;
+      this.invalidateDock();
+      let shown = 0;
+      new Animation(FADE_MS, linear, progress => {
+        const step = progress < NORMAL_MAX / 3 ? 1 : progress < NORMAL_MAX * 2 / 3 ? 2 : 3;
+        if (step === shown) return;
+        shown = step;
+        query.textColor = step === 3 ? WHITE : FADE_BLUES[2 - step];
+        this.invalidateArea(query.y, query.y + query.h);
+      }).schedule();
+      this.startThinking();
+    }).schedule();
   }
 
   // The cube grows out of the dot and turns until the answer is ready (at least one turn),
@@ -589,9 +635,16 @@ export default class Chat {
   // whichever way the page goes. One too tall to show whole there also stops at its top,
   // a GAP below the time bar: going down that comes first, going up after its icon. A day
   // label goes with the message under it: that message's top stop shows the label above
-  // it. Stops within SNAP_SLACK of `from` are passed over, so a press always moves the page.
+  // it. Text too long to read between its top and its icon also stops a page of text at a
+  // time: each stop brings the first line the last one did not show whole to the top,
+  // the line before it hidden under the time bar, until the icon's stop shows the rest.
+  // Stops within SNAP_SLACK of `from` are passed over, so a press always moves the page.
   nextStop(from, down) {
-    const header = this.headerHeight, items = this.items;
+    const header = this.headerHeight, items = this.items, lineHeight = this.lineHeight;
+    // The screen row a page's first line's capitals go to, and a line's ink from its
+    // capitals to its descenders.
+    const reading = header - 1 + this.textTop - this.textDescender;
+    const ink = lineHeight - this.textTop + this.textDescender;
     let best, label;
     const consider = stop => {
       if (down ? stop > from + SNAP_SLACK && (best === undefined || stop < best)
@@ -609,7 +662,19 @@ export default class Chat {
       const bottom = this.clamp(item.y + item.h + GAP - DOCK_TOP);
       label = undefined;
       consider(bottom);
-      if (top < bottom) consider(top);
+      if (top >= bottom) continue;
+      consider(top);
+      const lines = item.lines;
+      if (!lines) continue;
+      const first = item.y + 1 + (item.widget ? CARD_TEXT_GAP : BUBBLE_TEXT_GAP);
+      let stop = top;
+      for (let line = 0; line < lines.length; line++) {
+        const caps = first + line * lineHeight;
+        if (caps + ink <= stop + PAGE_BOTTOM) continue;   // shown whole at this stop
+        if (caps >= bottom + header) break;               // the icon's stop shows it
+        stop = caps - reading;
+        consider(stop);
+      }
     }
     return best;
   }
@@ -738,10 +803,10 @@ export default class Chat {
       // A band of the page, the dock, or both in one band down to the bottom. The dock's
       // band starts where what floats on the divider can reach, the page under it painted
       // first.
-      let top = FLOAT_TOP, bottom = HEIGHT;
+      let top = this.floatTop(0), bottom = HEIGHT;
       if (dirty === "area") {
         top = Math.max(this.headerHeight, this.dirtyTop - this.offset);
-        if (dock) top = Math.min(top, FLOAT_TOP);
+        if (dock) top = Math.min(top, this.floatTop(0));
         else bottom = Math.min(HEIGHT, this.dirtyBottom - this.offset);
         if (bottom <= top) return;
       }
@@ -753,6 +818,8 @@ export default class Chat {
     }
     this.drawnOffset = this.offset;
     if (this.stretch) this.stretch.drawn = this.stretch.progress;
+    if (this.lift) this.lift.drawnTop = this.lift.top;
+    this.landed = undefined;
     render.end();
     if (!hooked) {
       // Poco has set the root layer's update proc on this first frame: take it over.
@@ -789,8 +856,12 @@ export default class Chat {
     // when that clip was pushed, and begin() does not set that rectangle: so the whole
     // screen is pushed first, and each band's pop restores the whole screen.
     render.clip(0, 0, WIDTH, HEIGHT);
+    // The dock's band, painted last, can reach above the bottom strip (as the user's bubble
+    // rises): then it paints the strip too, not after it.
+    const float = this.floatTop(dy);
+    const covered = dock && !stretch && float <= PAGE_BOTTOM - step;
     this.iconsHeld = stretch !== undefined;
-    if (dy > 0) this.drawBand(0, PAGE_BOTTOM - step, WIDTH, PAGE_BOTTOM);
+    if (dy > 0 && !covered) this.drawBand(0, PAGE_BOTTOM - step, WIDTH, PAGE_BOTTOM);
     else if (dy < 0) this.drawBand(0, header, WIDTH, header + step);
     this.iconsHeld = false;
     // @strip profile
@@ -827,9 +898,6 @@ export default class Chat {
     // The position bar's column, cleared: nothing else on the page reaches it.
     render.fillRectangle(WHITE, 0, header, BAR_COLUMN, PAGE_BOTTOM - header);
     if (this.barVisible) this.drawScrollBar();
-    // What floats on the divider moved with the rows: up by dy when the page moves up, so
-    // the band painted again reaches that much higher.
-    const float = Math.max(header, FLOAT_TOP - (dy > 0 ? dy : 0));
     if (dock) this.drawBand(0, float, WIDTH, HEIGHT);
     else if (step) this.drawBand(FLOAT_LEFT, float, FLOAT_RIGHT, PAGE_BOTTOM);
     // A band at the top of the page reaches one row into the time bar: its rule again.
@@ -840,6 +908,18 @@ export default class Chat {
     stats.rest += now() - mark;
     // @endstrip
     return true;
+  }
+
+  // The highest screen row the dock's band repaints from: as high as what floats on the
+  // divider reaches (the cube's frames, the user's bubble rising out of the dock), now or
+  // as last drawn. What was last drawn on the page's rows moved with them: up by `dy` when
+  // the page moves up, so for that the band reaches that much higher.
+  floatTop(dy) {
+    const moved = dy > 0 ? dy : 0, lift = this.lift;
+    let top = FLOAT_TOP - moved;
+    if (lift) top = Math.min(top, lift.top, lift.drawnTop - moved);
+    if (this.landed !== undefined) top = Math.min(top, this.landedTop, this.landed - moved);
+    return Math.max(this.headerHeight, top);
   }
 
   // A card's icon `height` rows tall from `top`: stretched natively (scroll.c), or as
@@ -934,6 +1014,8 @@ export default class Chat {
       if (page > cleared) render.fillRectangle(WHITE, 0, cleared, WIDTH, page - cleared);
     }
     if (bottom > FLOAT_TOP) this.drawDock();
+    // The user's bubble rising out of the dock into the page.
+    if (this.lift) this.drawLift();
     // The result's icon: unfolding and holding in the dock, or flying up the page into its
     // card.
     if (this.transition.active) this.transition.draw();
@@ -963,7 +1045,11 @@ export default class Chat {
       const step = shade >= 255 ? 3 : Math.trunc(shade * 3 / 255);
       if (!step) return;
       render.drawRoundRect(x, y, w, h, FADE_BLUES[step - 1], PILL_RADIUS, GCORNERS_ALL);
-      if (step === 3) this.drawLines(item.lines, WHITE, x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
+      // Its words, as they show (transcribe): from the bubble's blue, unseen, to white.
+      const color = item.textColor;
+      if (step === 3 && color !== VIVID_CERULEAN) {
+        this.drawLines(item.lines, color, x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
+      }
     } else if (item.widget) {
       this.drawCard(item, y);
     } else {
@@ -1061,34 +1147,29 @@ export default class Chat {
     }
   }
 
-  // The dock: while the user speaks, all blue, the divider's dots the waveform; otherwise the
-  // divider, parted around what sits on it, over the page's last rows: the microphone in
-  // its bubble, at rest, while the user's words come in and as it unfolds again after a
-  // turn; the bubble shrinking to a dot; the cube while Index thinks; then (while a result's
-  // icon unfolds there and flies off) nothing.
+  // The dock: while the user speaks, the microphone's bubble opened across the divider, the
+  // divider's dots in it the waveform; otherwise the divider, its middle third left out for
+  // what sits there, over the page's last rows: the microphone in its bubble, at rest and as
+  // it unfolds again after a turn; nothing while the user's bubble rises out of the dock
+  // (drawLift); the cube while Index thinks; then (while a result's icon unfolds there and
+  // flies off) nothing.
   drawDock() {
     render.fillRectangle(WHITE, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
     const phase = this.phase;
     if (phase === "listening") {
       // The bubble opening sideways, over the divider, until it covers it.
       const open = this.expand;
-      if (open < NORMAL_MAX) this.drawDivider(BUBBLE_RADIUS + DIVIDER_GAP);
-      const left = DOCK_X - BUBBLE_RADIUS, size = 2 * BUBBLE_RADIUS;
-      const x = left - Math.trunc((left - DIVIDER_LEFT) * open / NORMAL_MAX);
-      const w = size + Math.trunc((LISTEN_WIDTH - size) * open / NORMAL_MAX);
-      const radius = BUBBLE_RADIUS - Math.trunc((BUBBLE_RADIUS - PILL_RADIUS) * open / NORMAL_MAX);
-      render.drawRoundRect(x, BUBBLE_Y - BUBBLE_RADIUS, w, size, VIVID_CERULEAN, radius, GCORNERS_ALL);
+      if (open < NORMAL_MAX) this.drawDivider();
+      openShape(open);
+      render.drawRoundRect(shape[0], BUBBLE_Y - BUBBLE_RADIUS, shape[1], 2 * BUBBLE_RADIUS, VIVID_CERULEAN,
+                           shape[2], GCORNERS_ALL);
       if (this.waveHalf >= 0) this.waveform?.draw(WAVE_LEFT, BAR_TOP, WHITE, this.waveHalf, this.waveExtra);
       return;
     }
-    const bubble = phase === "idle" || phase === "transcribing" || phase === "shrinking" ||
-                   phase === "regrowing";
-    this.drawDivider((bubble ? BUBBLE_RADIUS : phase === "answering" ? ICON_CLEAR : CUBE_CLEAR) +
-                     DIVIDER_GAP);
+    const bubble = phase === "idle" || phase === "regrowing";
+    this.drawDivider();
     if (this.thinking.active) {
       this.thinking.draw(DOCK_X, CUBE_Y);
-    } else if (phase === "shrinking") {
-      render.drawCircle(VIVID_CERULEAN, DOCK_X, BUBBLE_Y, (this.bubbleQ8 + 128) >> 8);
     } else if (bubble) {
       render.drawCircle(VIVID_CERULEAN, DOCK_X, BUBBLE_Y, BUBBLE_RADIUS);
       if (phase === "regrowing") this.micUnfold.draw();
@@ -1096,13 +1177,21 @@ export default class Chat {
     }
   }
 
-  // The divider's dots, but for those within `clear` of the middle.
-  drawDivider(clear) {
-    for (let index = 0; index < DIVIDER_DOTS; index++) {
-      const x = DIVIDER_LEFT + index * DIVIDER_PITCH;
-      if (x + DIVIDER_DOT <= DOCK_X - clear || x > DOCK_X + clear) {
-        render.fillRectangle(DARK_GRAY, x, BAR_TOP, DIVIDER_DOT, DIVIDER_DOT);
-      }
+  // The user's bubble rising out of the dock (transcribe), over the page and the dock, the
+  // waveform drawing back into its middle on its middle row.
+  drawLift() {
+    const lift = this.lift;
+    render.drawRoundRect(lift.x, lift.top, lift.w, lift.bottom - lift.top, VIVID_CERULEAN, lift.radius,
+                         GCORNERS_ALL);
+    if (lift.half >= 0) this.waveform?.draw(WAVE_LEFT, ((lift.top + lift.bottom) >> 1) - 1, WHITE, lift.half);
+  }
+
+  // The divider's dots, DIVIDER_SIDE at each end: its middle third is always left out.
+  drawDivider() {
+    for (let index = 0; index < DIVIDER_SIDE; index++) {
+      render.fillRectangle(DARK_GRAY, DIVIDER_LEFT + index * DIVIDER_PITCH, BAR_TOP, DIVIDER_DOT, DIVIDER_DOT);
+      render.fillRectangle(DARK_GRAY, DIVIDER_LEFT + (DIVIDER_DOTS - 1 - index) * DIVIDER_PITCH, BAR_TOP,
+                           DIVIDER_DOT, DIVIDER_DOT);
     }
   }
 

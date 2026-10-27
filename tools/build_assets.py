@@ -95,9 +95,13 @@ ICONS = {
         ('path', [(2.5, 13.5), (12.5, 3.5), (22.5, 13.5)], 0, True),
         ('path', [(10.5, 22), (10.5, 16), (14.5, 16), (14.5, 22)], 0, True),
     ],
-    # Web Answer: a globe with one meridian and the equator.
+    # Web Answer: a globe with one meridian and the equator. Its outline is a 32-sided
+    # path, not a circle: the firmware scales a PDC by moving its points and never a
+    # circle's radius, so as the icon unfolds, flies and stretches, a circle stayed its
+    # full size while the meridian and equator inside it moved.
     'web': [
-        ('circle', (12, 12), 10),
+        ('path', [(12 + 10 * math.sin(math.pi * k / 16), 12 - 10 * math.cos(math.pi * k / 16))
+                  for k in range(32)], WHITE, False),
         ('path', [(12 + 4.5 * x, 12 + 10 * y) for x, y in (
             (0, -1), (0.56, -0.92), (0.87, -0.71), (1, -0.38), (1, 0.38), (0.87, 0.71),
             (0.56, 0.92), (0, 1), (-0.56, 0.92), (-0.87, 0.71), (-1, 0.38), (-1, -0.38),
@@ -164,23 +168,21 @@ def scale_pdc(path, factor, stroke):
 
 # The dock's microphone, in its blue bubble: Pebble's microphone (above) redrawn at the
 # dock's size on the pixel grid rather than scaled, which blurred its slanted grille and
-# 2px outline into mush. The same parts, 27 x 28: the capsule with a 2px outline on pixel
-# edges, white inside, its grille a centre line and two cross lines (3px cells), the
-# three rays, the cradle, the stem and a 2px base, every 1px line through pixel centres.
-# Coordinates are Pebble's (an integer is a pixel's centre).
-DOCK_MIC_SIZE = (27, 28)
+# 2px outline into mush. Without its rays, as large as the 36px bubble holds it with 4
+# rows clear above and below, 21 x 28: the capsule with a 2px outline on pixel edges,
+# white inside, its grille a centre line and two cross lines (square 4px cells), the
+# cradle, the stem and a 2px base, every 1px line through pixel centres. Coordinates are
+# Pebble's (an integer is a pixel's centre).
+DOCK_MIC_SIZE = (21, 28)
 DOCK_MIC = [
-    ([(10.5, 5.5), (15.5, 5.5), (17.5, 7.5), (17.5, 16.5), (15.5, 18.5), (10.5, 18.5),
-      (8.5, 16.5), (8.5, 7.5)], 2, WHITE, False),                      # capsule
-    ([(13, 7), (13, 17)], 1, 0, True),                                  # grille
-    ([(10, 10), (16, 10)], 1, 0, True),
-    ([(10, 14), (16, 14)], 1, 0, True),
-    ([(13, 1), (13, 3)], 1, 0, True),                                   # rays
-    ([(7, 4), (5, 2)], 1, 0, True),
-    ([(19, 4), (21, 2)], 1, 0, True),
-    ([(5, 17), (10, 22), (16, 22), (21, 17)], 1, 0, True),              # cradle
-    ([(13, 23), (13, 25)], 1, 0, True),                                 # stem
-    ([(10, 26.5), (16, 26.5)], 2, 0, True),                             # base
+    ([(7.5, 0.5), (12.5, 0.5), (15.5, 3.5), (15.5, 13.5), (12.5, 16.5), (7.5, 16.5),
+      (4.5, 13.5), (4.5, 3.5)], 2, WHITE, False),                       # capsule
+    ([(10, 2), (10, 15)], 1, 0, True),                                  # grille
+    ([(6, 6), (14, 6)], 1, 0, True),
+    ([(6, 11), (14, 11)], 1, 0, True),
+    ([(0, 15), (6, 21), (14, 21), (20, 15)], 1, 0, True),               # cradle
+    ([(10, 22), (10, 25)], 1, 0, True),                                 # stem
+    ([(6, 26.5), (14, 26.5)], 2, 0, True),                              # base
 ]
 
 

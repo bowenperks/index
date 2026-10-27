@@ -12,17 +12,22 @@ a slim time bar on top, day labels ("Yesterday", "Today") between days, and belo
 the dock, the screen's bottom 49px: the Weather app's mainscreen divider (45 Dark Gray
 dots) across it, and on the divider, centred, the voice input in a blue bubble: Pebble's
 own microphone, the one the system dictation screen shows, redrawn for the dock on the
-pixel grid (27 x 28), black with its capsule white inside. The divider stops
-short of the bubble. Below the divider is the bar, the 29px of a PebbleOS notification's
+pixel grid without its rays, as large as the bubble holds it (21 x 28), black with its
+capsule white inside. The divider's middle third
+(15 dots) is always left out, whatever sits there, sized for the largest: a result's
+icon as it unfolds. Below the divider is the bar, the 29px of a PebbleOS notification's
 banner under its status bar (`LAYOUT_BANNER_HEIGHT_RECT`): white until the user speaks.
-The microphone and a result's icon are the banner icon's size (25px); the thinking cube
-rests 41px tall, the largest that turns inside the dock, as smaller it loses its faces.
+The microphone is 28px tall, 4px clear of its bubble above and below; the thinking cube
+rests 41px tall, the largest that turns inside the dock, as smaller it loses its faces,
+and a result's icon unfolds there as big as the cube.
 The time bar's clock sits where the firmware's status bar puts it (digits from row 5).
 A touch drag scrolls the history above it freely; Up and Down snap between stops, a
 message in focus at the bottom of the screen with its icon just above the dock either
 way. A message too tall to show whole there also stops at its top, just under the time
 bar: going down first, going up after its icon (a day label goes with the message under
-it). Text in Index's cards and bubbles is
+it). Text too long to read between those two stops also stops a page of text at a time,
+each stop bringing the first line the last one did not show whole to just under the time
+bar, the line before it hidden there, until the icon's stop shows the rest. Text in Index's cards and bubbles is
 left-aligned, every line, and optically centred: as many empty rows above its first
 line's capitals as below its last line's baseline, which in a card is the top of its
 corner icon's ink.
@@ -31,16 +36,18 @@ Asking opens the bubble sideways into a rectangular blue bubble as wide as the d
 and as tall as the microphone's, and the recording's waveform squashes and stretches in: white bars on the middle 31 of the divider's dots, one tall bar at the
 middle spreading out, flattening, past its width and back; each grows up and down from
 its place as the voice comes in from the right. Then
-the whole transcribed message is pushed in from the bottom at once, and while Index
-thinks, the thinking cube grows out of a dot where the microphone was, the divider parted
-around it. When the result comes in, it takes the words' place: the history keeps
+the waveform draws back into its middle and the blue bubble becomes the whole transcribed
+message: it takes the user's bubble's shape and pushes itself up into the page, the page
+going up ahead of it, its top edge leading and its bottom following, and its words show,
+from blue to white. While Index thinks, the thinking cube grows out of a dot where the
+microphone was, in the divider's gap. When the result comes in, it takes the words' place: the history keeps
 results, not questions. A widget's icon unfolds out of the cube's dot (after the
 notification peek), then flies up into its card as the card rises in. The microphone
 then unfolds in its bubble out of a dot, as the dictation screen's does.
 
 The microphone's art is PebbleOS's `Pebble_80x80_Microphone.svg` (Apache-2.0, Google
-LLC), copied to `resources/svg/` and converted to a 24px PDC (25px of ink) by
-`tools/build_assets.py`. The thinking cube is drawn at the dock's size the way PebbleOS
+LLC), copied to `resources/svg/`; the dock's is redrawn from it on the pixel grid by
+`tools/build_assets.py` (DOCK_MIC). The thinking cube is drawn at the dock's size the way PebbleOS
 draws its own icons (white body, uniform 2px black lines, round joins, every point on
 a pixel centre, on the dock's white) by `tools/build_cube.py` from the Blender cube's geometry
 (`tools/cube-geometry.json`); it needs shapely, so it is run by hand when the cube changes.

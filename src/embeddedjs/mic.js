@@ -6,7 +6,7 @@ import Poco from "commodetto/Poco";
 import {MIC_SMALL} from "assets";
 import {render} from "theme";
 
-export const MIC_WIDTH = 27, MIC_HEIGHT = 28;   // the microphone's canvas
+export const MIC_WIDTH = 21, MIC_HEIGHT = 28;   // the microphone's canvas
 
 let glyph;
 
