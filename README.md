@@ -17,11 +17,11 @@ emulator: the 20px status bar in the banner's colour, then the 29px
 size (25px); the thinking cube rests 41px tall, the largest that turns inside the dock, as
 smaller it loses its faces. The
 time bar's clock sits where the firmware's status bar puts it (digits from row 5).
-A touch drag scrolls the history above it freely; Up and Down snap between stops, each
-message coming into focus at the edge it enters from: going down, its top just under the
-time bar, then its icon just above the dock; going up, its icon first, then its top (a
-message that shows whole has only the first stop; a day label goes with the message
-under it). Text in Index's cards and bubbles is
+A touch drag scrolls the history above it freely; Up and Down snap between stops, a
+message in focus at the bottom of the screen with its icon just above the dock either
+way. A message too tall to show whole there also stops at its top, just under the time
+bar: going down first, going up after its icon (a day label goes with the message under
+it). Text in Index's cards and bubbles is
 left-aligned, every line, and optically centred: as many empty rows above its first
 line's capitals as below its last line's baseline, which in a card is the top of its
 corner icon's ink.

@@ -537,12 +537,11 @@ export default class Chat {
   }
 
   // The page's stop after `from`, going down (or before it, going up), or undefined at the
-  // end. Each message has two: its top, a GAP below the time bar, and its icon at the
-  // bottom, a GAP above the dock. A message comes into focus at the edge it enters from:
-  // going down, at its top, then its icon; going up, at its icon, then its top. One that
-  // shows whole, icon and all, at either has just the first. A day label goes with the
-  // message under it: that message's top stop shows the label above it. Stops within
-  // SNAP_SLACK of `from` are passed over, so a press always moves the page.
+  // end. A message is in focus at the bottom of the screen, its icon a GAP above the dock,
+  // whichever way the page goes. One too tall to show whole there also stops at its top,
+  // a GAP below the time bar: going down that comes first, going up after its icon. A day
+  // label goes with the message under it: that message's top stop shows the label above
+  // it. Stops within SNAP_SLACK of `from` are passed over, so a press always moves the page.
   nextStop(from, down) {
     const header = this.headerHeight, items = this.items;
     let best, label;
@@ -561,13 +560,8 @@ export default class Chat {
       const top = this.clamp((label ?? item.y) - header - GAP);
       const bottom = this.clamp(item.y + item.h + GAP - DOCK_TOP);
       label = undefined;
-      if (down) {
-        consider(top);
-        if (bottom > top) consider(bottom);
-      } else {
-        consider(bottom);
-        if (top < bottom) consider(top);
-      }
+      consider(bottom);
+      if (top < bottom) consider(top);
     }
     return best;
   }
