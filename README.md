@@ -11,7 +11,8 @@ Index opens like a messaging app, on its history of results: newest at the botto
 a slim time bar on top, day labels ("Yesterday", "Today") between days, and below them
 the dock, the screen's bottom 49px: the Weather app's mainscreen divider (45 Dark Gray
 dots) across it, and on the divider, centred, the voice input in a blue bubble: Pebble's
-own microphone, the one the system dictation screen shows, in white. The divider stops
+own microphone, the one the system dictation screen shows, black with its capsule white
+inside. The divider stops
 short of the bubble. Below the divider is the bar, the 29px of a PebbleOS notification's
 banner under its status bar (`LAYOUT_BANNER_HEIGHT_RECT`): white until the user speaks.
 The microphone and a result's icon are the banner icon's size (25px); the thinking cube

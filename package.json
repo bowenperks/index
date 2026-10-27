@@ -228,8 +228,8 @@
         },
         {
           "type": "raw",
-          "name": "INDEX_MIC_WHITE",
-          "file": "pdc/index-mic-white.pdc"
+          "name": "INDEX_MIC_SMALL",
+          "file": "pdc/index-mic-small.pdc"
         },
         {
           "type": "raw",

@@ -59,10 +59,11 @@ const BAR_COLUMN = 6;
 // The dock: the screen's bottom 49px, below the page. Across it, the Weather app's
 // mainscreen divider (45 Dark Gray dots, 2px square, 4px apart, centred: weather_app_
 // layout.c), 20px down; on it, centred, the microphone in a blue bubble (Index blue, 37px
-// across), the microphone white, the banner icon's 25px. The divider stops short of the
-// bubble, DIVIDER_GAP clear of it. Below the divider is the bar, the 29px of a PebbleOS
-// notification's banner under its status bar (LAYOUT_BANNER_HEIGHT_RECT): white, until
-// the user speaks, when it turns blue with the recording's waveform across it in white.
+// across), black with its capsule white inside, the banner icon's 25px. The divider stops
+// short of the bubble, DIVIDER_GAP clear of it. Below the divider is the bar, the 29px of
+// a PebbleOS notification's banner under its status bar (LAYOUT_BANNER_HEIGHT_RECT):
+// white, until the user speaks, when it turns blue with the recording's waveform across
+// it in white.
 const DOCK_HEIGHT = 49, DOCK_TOP = HEIGHT - DOCK_HEIGHT;
 const BAR_HEIGHT = 29, BAR_TOP = HEIGHT - BAR_HEIGHT, BAR_CENTRE = BAR_TOP + (BAR_HEIGHT >> 1);
 const DIVIDER_DOTS = 45, DIVIDER_PITCH = 4, DIVIDER_DOT = 2, DIVIDER_GAP = 4;
@@ -414,7 +415,7 @@ export default class Chat {
   finishTurn() {
     this.landing = undefined;
     this.phase = "regrowing";
-    if (!this.micUnfold.start(assets.MIC_WHITE, DOCK_X, BUBBLE_Y, undefined, true)) this.idle();
+    if (!this.micUnfold.start(assets.MIC_SMALL, DOCK_X, BUBBLE_Y, undefined, true)) this.idle();
   }
 
   // Between turns, the turn's art is let go and collected at once: its native memory (the

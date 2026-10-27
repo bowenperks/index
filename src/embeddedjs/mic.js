@@ -1,8 +1,9 @@
 // The voice input in Index's dock: Pebble's own microphone (the dictation screen's, scaled
-// to the notification banner's 25px icon: 25px of ink on a 24px canvas), in white for its
-// blue bubble; and the recording's waveform, which runs in the dock's blue bar.
+// to the notification banner's 25px icon: 25px of ink on a 24px canvas), black lines with
+// its capsule white inside, in a blue bubble; and the recording's waveform, which runs in
+// the dock's blue bar.
 import Poco from "commodetto/Poco";
-import {MIC_WHITE} from "assets";
+import {MIC_SMALL} from "assets";
 import {render} from "theme";
 
 export const MIC_SIZE = 24;       // the microphone's canvas, square
@@ -11,7 +12,7 @@ let glyph;
 
 // The microphone centred on (cx, cy).
 export function drawMic(cx, cy) {
-  glyph ??= new Poco.PebbleDrawCommandImage(MIC_WHITE);
+  glyph ??= new Poco.PebbleDrawCommandImage(MIC_SMALL);
   render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
 }
 

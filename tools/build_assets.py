@@ -295,7 +295,7 @@ for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
     STATIC.append((f'{widget.upper()}_MEDIUM', f'pdc/index-widget-{widget}-medium.pdc', 'raw'))
 STATIC += [
     ('MIC', 'pdc/index-mic.pdc', 'raw'),
-    ('MIC_WHITE', 'pdc/index-mic-white.pdc', 'raw'),
+    ('MIC_SMALL', 'pdc/index-mic-small.pdc', 'raw'),
     ('WEATHER_SMALL', 'pdc/index-widget-weather-small.pdc', 'raw'),
     ('STREET_MAP', 'pdc/index-street-map.pdc', 'raw'),
     ('TYPING_BUBBLE', 'pdc/index-typing-bubble.pdc', 'raw'),
@@ -308,9 +308,8 @@ def build():
     (PDC / 'index-weather-disc.pdc').write_bytes(weather_disc())
     (PDC / 'index-pen.pdc').write_bytes(pen())
     (PDC / 'index-mic.pdc').write_bytes(microphone())
-    # The dock's microphone: white lines, no fill, in its blue bubble.
-    (PDC / 'index-mic-white.pdc').write_bytes(
-        microphone(24, lambda width: 2 if width >= 4 else 1, colour=WHITE, fill_colour=0))
+    # The dock's microphone, in its blue bubble: black lines, the capsule white inside.
+    (PDC / 'index-mic-small.pdc').write_bytes(microphone(24, lambda width: 2 if width >= 4 else 1))
     # The weather's dock icon, from the 80px vector partly-cloudy icon (strokes halved).
     (PDC / 'index-widget-weather-small.pdc').write_bytes(
         scale_pdc(PDC / 'index-weather-partly-cloudy-large.pdc', DOCK_ICON / LARGE_SIZE,
