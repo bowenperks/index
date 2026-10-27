@@ -51,6 +51,7 @@ const SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
 const ICON_INK_TOP = {beeper: 3, reminder: 0, home: 4, web: 2};
 const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
+const SNAP_SLACK = 4;    // px: Up / Down pass over a stop this close to where the page is
 const STATUS_DIGITS_TOP = 5;
 // The position bar's column at the left edge, which nothing else on the page reaches:
 // cards start at CARD_MARGIN, a reply's tail 5px inside MARGIN.
@@ -503,17 +504,15 @@ export default class Chat {
     this.invalidate();
   }
 
-  // Up / Down step the page as the original history view did: one visible height less
-  // 48 pixels of overlap per press, from wherever the reader is. The page holds still
-  // while Index is listening, thinking or answering. The step moves as Timeline's pins
-  // do: the moook curve (a wind-up, a jump, an overshoot and a settle), with each card's
-  // icon stretching along the travel and squashing as it lands.
+  // Up / Down move the page between its stops (nextStop), from wherever the reader is.
+  // The page holds still while Index is listening, thinking or answering. The step moves
+  // as Timeline's pins do: the moook curve (a wind-up, a jump, an overshoot and a settle),
+  // with each card's icon stretching along the travel and squashing as it lands.
   scroll(down) {
     if (!this.visible || this.busy) return;
-    const page = DOCK_TOP - this.headerHeight - 48;
     const from = this.stretch ? this.stretch.target : this.offset;
-    const target = this.clamp(from + (down ? page : -page));
-    if (target === from) return;
+    const target = this.nextStop(from, down);
+    if (target === undefined) return;
     this.showBar();
     this.scrollAnimation?.unschedule();
     this.scrollTarget = target;
@@ -535,6 +534,36 @@ export default class Chat {
     }, () => {
       if (this.stretch === stretch) this.endStep();
     }).schedule();
+  }
+
+  // The page's stop after `from`, going down (or before it, going up), or undefined at the
+  // end. Each message has two: its top, a GAP below the time bar, then its icon at the
+  // bottom, a GAP above the dock; a message that shows whole, icon and all, at its top has
+  // just the one. A day label goes with the message under it: that message's top stop
+  // shows the label above it. Stops within SNAP_SLACK of `from` are passed over, so a
+  // press always moves the page.
+  nextStop(from, down) {
+    const header = this.headerHeight, items = this.items;
+    let best, label;
+    const consider = stop => {
+      if (down ? stop > from + SNAP_SLACK && (best === undefined || stop < best)
+               : stop < from - SNAP_SLACK && (best === undefined || stop > best)) {
+        best = stop;
+      }
+    };
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      if (item.type === "day") {
+        label ??= item.y;
+        continue;
+      }
+      const top = this.clamp((label ?? item.y) - header - GAP);
+      const bottom = this.clamp(item.y + item.h + GAP - DOCK_TOP);
+      label = undefined;
+      consider(top);
+      if (bottom > top) consider(bottom);
+    }
+    return best;
   }
 
   // The icons on the screen (at the offset drawn, which a pending frame may not yet show)
