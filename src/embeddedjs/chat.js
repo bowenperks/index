@@ -35,14 +35,20 @@ const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6
 // it; there is no other label.
 const CARD_RADIUS = 7, WIDGET_BODY = 154;
 const CUT_WIDTH = 40, CUT_HEIGHT = 19, ICON_ABOVE = 15, ICON_BELOW = 36 - 1 - ICON_ABOVE;
-// Content near the bottom clears the cutout: text cards' ink (descenders included) ends
-// at least 22px above the bottom edge; the rich bodies' bottom padding is measured from
-// their last row's caps, so they get 15px more for its descenders and the gap.
-const CUT_CLEARANCE = CUT_HEIGHT + 3, BODY_CLEARANCE = CUT_HEIGHT - 4;
+// The rich bodies' bottom padding is measured from their last row's caps, so they clear
+// the cutout by 15px more for its descenders and the gap.
+const BODY_CLEARANCE = CUT_HEIGHT - 4;
 const WIDGET_ICON = 36;
-// A card's text is set like a notification's body, at the card's 10px inset, with a text
-// bubble's 9px above; a source line, if any, follows in small type.
-const CARD_TEXT_INSET = 10, CARD_TEXT_PADDING = 9, SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
+// Text is left-aligned, every line, and sits optically centred in its box: as many empty
+// rows above its first line's capitals as below its last line's baseline (descenders
+// hang into the gap below). A card's text, at its 10px inset, is centred between the
+// card's top edge and the top of its icon's ink, 11 rows each side (ICON_INK_TOP: the
+// row of each card icon's 36px box where the firmware starts drawing it, measured on the
+// emulator); a source line, if any, follows in small type and counts as the text's last
+// line. A bubble's text is centred between its edges, 10 rows each side.
+const CARD_TEXT_INSET = 10, CARD_TEXT_GAP = 11, BUBBLE_TEXT_GAP = 10;
+const SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
+const ICON_INK_TOP = {beeper: 3, reminder: 0, home: 4, web: 2};
 const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
 const STATUS_DIGITS_TOP = 5;
@@ -158,6 +164,16 @@ export default class Chat {
     return lines.length * this.lineHeight - this.textTop + this.textDescender;
   }
 
+  // The rows from the first line's capitals to the last line's baseline.
+  textBlock(lines) {
+    return lines.length * this.lineHeight - this.textTop;
+  }
+
+  // A bubble's height for its lines, the text centred between its edges.
+  bubbleHeight(lines) {
+    return this.textBlock(lines) + 2 + 2 * BUBBLE_TEXT_GAP;
+  }
+
   // Sizes an entry once; the page's fonts and width do not change while it runs.
   size(item, text) {
     item.shade = 255;
@@ -178,7 +194,7 @@ export default class Chat {
       item.lines = measured.lines;
       w = measured.w + 18;
       x = WIDTH - MARGIN - w;
-      h = this.textHeight(item.lines) + 18;
+      h = this.bubbleHeight(item.lines);
     } else if (item.widget) {
       const [, , body, source] = WIDGETS[item.widget];
       x = CARD_MARGIN;
@@ -189,8 +205,11 @@ export default class Chat {
         h = CARDS[body].height + BODY_CLEARANCE;
       } else {
         item.lines = measure(text, this.font, w - 2 * CARD_TEXT_INSET).lines;
-        h = CARD_TEXT_PADDING + this.textHeight(item.lines) + (source ? SOURCE_GAP + SOURCE_CAP : 0) +
-            CUT_CLEARANCE;
+        // The top edge, the gap, the text (down to the source line's baseline), the gap,
+        // then the icon's ink: its box rises ICON_ABOVE rows above the card's bottom edge.
+        const block = source ? this.textHeight(item.lines) + SOURCE_GAP + SOURCE_CAP
+                             : this.textBlock(item.lines);
+        h = 2 * CARD_TEXT_GAP + block - (ICON_INK_TOP[item.widget] ?? 0) + ICON_ABOVE + 2;
       }
       // The card itself; the entry also holds the icon hanging below it.
       item.card = h;
@@ -198,18 +217,15 @@ export default class Chat {
     } else {
       // A plain reply: Index's bubble with its tail.
       item.lines = measure(text, this.font, w - 16).lines;
-      h = this.textHeight(item.lines) + 18;
+      h = this.bubbleHeight(item.lines);
     }
     item.x = x;
     item.w = w;
     item.h = h;
-    // Centring needs a width, measured once here rather than every frame: the last line
-    // of Index's messages is centred across its text, a day label across the page.
+    // A day label is centred across the page: its width measured once here rather than
+    // every frame.
     if (item.type === "day") {
       item.textX = (WIDTH - textWidth(item.text, font("Gothic-Bold", 18))) >> 1;
-    } else if (item.lines && item.type !== "query") {
-      const width = item.widget ? w - 2 * CARD_TEXT_INSET : w - 16;
-      item.lastX = (width - textWidth(item.lines[item.lines.length - 1], this.font)) >> 1;
     }
     return item;
   }
@@ -577,8 +593,6 @@ export default class Chat {
   showNotice(message) {
     if (this.noticeTimer !== undefined) clearTimeout(this.noticeTimer);
     this.notice = measure(message, this.font, WIDTH - BUBBLE_INSET - 16).lines;
-    this.noticeLastX = (WIDTH - BUBBLE_INSET - 16 -
-                        textWidth(this.notice[this.notice.length - 1], this.font)) >> 1;
     this.noticeTimer = setTimeout(() => {
       this.noticeTimer = undefined;
       this.notice = "";
@@ -844,9 +858,8 @@ export default class Chat {
     if (this.barVisible) this.drawScrollBar();
     // @strip dictation
     if (this.notice) {
-      const h = this.textHeight(this.notice) + 18;
-      this.drawBubble(MARGIN, DOCK_TOP - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true,
-                      this.noticeLastX);
+      const h = this.bubbleHeight(this.notice);
+      this.drawBubble(MARGIN, DOCK_TOP - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true);
     }
     // @endstrip
   }
@@ -865,16 +878,16 @@ export default class Chat {
       const step = shade >= 255 ? 3 : Math.trunc(shade * 3 / 255);
       if (!step) return;
       render.drawRoundRect(x, y, w, h, FADE_BLUES[step - 1], PILL_RADIUS, GCORNERS_ALL);
-      if (step === 3) this.drawLines(item.lines, WHITE, x + 8, y + 9 - this.textTop);
+      if (step === 3) this.drawLines(item.lines, WHITE, x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
     } else if (item.widget) {
       this.drawCard(item, y);
     } else {
-      this.drawBubble(x, y, w, h, item.lines, shade, false, item.lastX);
+      this.drawBubble(x, y, w, h, item.lines, shade, false);
     }
   }
 
   // Index's reply bubble: the thin grey outline of the home greeting, with its tail.
-  drawBubble(x, y, w, h, lines, shade, fill, lastX) {
+  drawBubble(x, y, w, h, lines, shade, fill) {
     if (!shade) return;
     const border = ink(Math.min(shade, 170));
     // Filled only over content (the notice): the page's strips are already white.
@@ -888,16 +901,13 @@ export default class Chat {
     }
     render.drawDCI(this.tail, x - 5, y + h - 1 - 9);
     render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
-    this.drawLines(lines, ink(shade), x + 8, y + 9 - this.textTop, lastX);
+    this.drawLines(lines, ink(shade), x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
   }
 
-  // Lines of conversation text from `x`. Index's own messages pass `lastX`, where their
-  // last line starts to be centred (measured when the entry was sized).
-  drawLines(lines, color, x, top, lastX) {
-    const last = lines.length - 1;
-    for (let index = 0; index <= last; index++) {
-      const left = lastX !== undefined && index === last ? x + lastX : x;
-      drawText(lines[index], this.font, color, left, top + index * this.lineHeight);
+  // Lines of conversation text, left-aligned at `x`, the first line's box at `top`.
+  drawLines(lines, color, x, top) {
+    for (let index = 0; index < lines.length; index++) {
+      drawText(lines[index], this.font, color, x, top + index * this.lineHeight);
     }
   }
 
@@ -956,8 +966,9 @@ export default class Chat {
     } else if (widget[2]) {
       CARDS[widget[2]].draw(body, shade);
     } else {
-      const top = y + CARD_TEXT_PADDING;
-      this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop, item.lastX);
+      // The first line's capitals, the gap below the card's top edge.
+      const top = y + 1 + CARD_TEXT_GAP;
+      this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop);
       if (source) {
         drawText(source, font("Gothic-Regular", 14), quiet, x + CARD_TEXT_INSET,
                  top + this.textHeight(item.lines) + SOURCE_GAP - SOURCE_CAP_TOP);

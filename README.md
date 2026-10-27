@@ -17,8 +17,10 @@ emulator: the 20px status bar in the banner's colour, then the 29px
 size (25px); the thinking cube rests 41px tall, the largest that turns inside the dock, as
 smaller it loses its faces. The
 time bar's clock sits where the firmware's status bar puts it (digits from row 5).
-Up/Down or a touch drag scroll the history above it. The last line of each of Index's
-messages is centred in its bubble.
+Up/Down or a touch drag scroll the history above it. Text in Index's cards and bubbles is
+left-aligned, every line, and optically centred: as many empty rows above its first
+line's capitals as below its last line's baseline, which in a card is the top of its
+corner icon's ink.
 
 Asking pushes things in from the bottom. The recording's waveform runs in the user's
 blue bubble, then the whole transcribed message comes in at once. While Index thinks,
