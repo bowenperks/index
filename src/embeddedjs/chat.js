@@ -91,13 +91,15 @@ const FLOAT_REACH = 27;
 const FLOAT_TOP = CUBE_Y - FLOAT_REACH, FLOAT_LEFT = DOCK_X - FLOAT_REACH - 1;
 const FLOAT_RIGHT = DOCK_X + FLOAT_REACH + 1;
 const SHRINK_MS = 220;
-// Asking, the bubble opens into the blue dock (EXPAND_MS, a rounded rectangle from the
-// bubble's square to the dock, its corners from round to square), then the waveform
-// squashes and stretches in (ENTER_MS): first a sliver of its middle ENTER_SLIVER bars
-// stretches up, ENTER_REACH rows taller (ENTER_STRETCH of the time, eased out); then it
-// spreads to its 31 bars, past them and back (an ease-out-back), flattening as it goes.
-// Its bars sit on the middle 31 of the divider's dots.
+// Asking, the bubble opens sideways into a rectangular bubble as wide as the divider and
+// as tall as the microphone's bubble (EXPAND_MS, its corners from the circle's to the
+// user's bubbles' PILL_RADIUS), then the waveform squashes and stretches in (ENTER_MS):
+// first a sliver of its middle ENTER_SLIVER bars stretches up, ENTER_REACH rows taller
+// (ENTER_STRETCH of the time, eased out); then it spreads to its 31 bars, past them and
+// back (an ease-out-back), flattening as it goes. Its bars sit on the middle 31 of the
+// divider's dots, inside the bubble.
 const EXPAND_MS = 300, ENTER_MS = 500, ENTER_STRETCH = 0.3, ENTER_SLIVER = 2;
+const LISTEN_WIDTH = (DIVIDER_DOTS - 1) * DIVIDER_PITCH + DIVIDER_DOT;
 const ENTER_REACH = 12, ENTER_BACK = 1.70158;
 const WAVE_HALF = WAVE_BARS >> 1;
 const WAVE_LEFT = DIVIDER_LEFT + ((DIVIDER_DOTS - WAVE_BARS) >> 1) * DIVIDER_PITCH;
@@ -1068,20 +1070,14 @@ export default class Chat {
     render.fillRectangle(WHITE, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
     const phase = this.phase;
     if (phase === "listening") {
+      // The bubble opening sideways, over the divider, until it covers it.
       const open = this.expand;
-      if (open < NORMAL_MAX) {
-        // The bubble opening into the dock, over the divider.
-        this.drawDivider(BUBBLE_RADIUS + DIVIDER_GAP);
-        const left = DOCK_X - BUBBLE_RADIUS, top = BUBBLE_Y - BUBBLE_RADIUS, size = 2 * BUBBLE_RADIUS;
-        const x = left - Math.trunc(left * open / NORMAL_MAX);
-        const y = top - Math.trunc((top - DOCK_TOP) * open / NORMAL_MAX);
-        const w = size + Math.trunc((WIDTH - size) * open / NORMAL_MAX);
-        const h = size + Math.trunc((DOCK_HEIGHT - size) * open / NORMAL_MAX);
-        const radius = BUBBLE_RADIUS - Math.trunc(BUBBLE_RADIUS * open / NORMAL_MAX);
-        render.drawRoundRect(x, y, w, h, VIVID_CERULEAN, radius, GCORNERS_ALL);
-      } else {
-        render.fillRectangle(VIVID_CERULEAN, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
-      }
+      if (open < NORMAL_MAX) this.drawDivider(BUBBLE_RADIUS + DIVIDER_GAP);
+      const left = DOCK_X - BUBBLE_RADIUS, size = 2 * BUBBLE_RADIUS;
+      const x = left - Math.trunc((left - DIVIDER_LEFT) * open / NORMAL_MAX);
+      const w = size + Math.trunc((LISTEN_WIDTH - size) * open / NORMAL_MAX);
+      const radius = BUBBLE_RADIUS - Math.trunc((BUBBLE_RADIUS - PILL_RADIUS) * open / NORMAL_MAX);
+      render.drawRoundRect(x, BUBBLE_Y - BUBBLE_RADIUS, w, size, VIVID_CERULEAN, radius, GCORNERS_ALL);
       if (this.waveHalf >= 0) this.waveform?.draw(WAVE_LEFT, BAR_TOP, WHITE, this.waveHalf, this.waveExtra);
       return;
     }

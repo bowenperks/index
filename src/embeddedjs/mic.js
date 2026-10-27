@@ -19,8 +19,9 @@ export function drawMic(cx, cy) {
 // A live recording's waveform: bars scroll in from the right, their heights following a
 // speech-like envelope of syllables and pauses.
 // The bars are the middle 31 of the divider's dots (chat.js), 2px wide, 4px apart: the
-// quietest a 2px square dot, the loudest reaching BAR_REACH rows above and below it.
-export const BARS = 31, BAR_PITCH = 4, BAR_WIDTH = 2, BAR_REACH = 16;
+// quietest a 2px square dot, the loudest reaching BAR_REACH rows above and below it, which
+// keeps 4px clear inside the 36px bubble they run in. Nothing reaches further.
+export const BARS = 31, BAR_PITCH = 4, BAR_WIDTH = 2, BAR_REACH = 13;
 
 export class Waveform {
   constructor() {
@@ -53,7 +54,7 @@ export class Waveform {
     const middle = BARS >> 1;
     for (let index = middle - half; index <= middle + half; index++) {
       const level = index >= 0 && index < BARS ? this.levels[index] : 0;
-      const reach = Math.trunc(BAR_REACH * level / 255) + extra;
+      const reach = Math.min(BAR_REACH, Math.trunc(BAR_REACH * level / 255) + extra);
       render.fillRectangle(color, x + index * BAR_PITCH, top - reach, BAR_WIDTH, 2 + 2 * reach);
     }
   }
