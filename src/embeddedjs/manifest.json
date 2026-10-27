@@ -93,6 +93,14 @@
 			"cubeRelease": {
 				"arguments": [],
 				"returns": "void"
+			},
+			"bitmapDraw": {
+				"arguments": [
+					"int32_t",
+					"int32_t",
+					"int32_t"
+				],
+				"returns": "void"
 			}
 		}
 	}

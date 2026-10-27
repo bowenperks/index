@@ -6,6 +6,7 @@
     "toplevel": true,
     "unsafe": false,
     "inline": 1,
+    "reduce_funcs": false,
     "keep_fargs": false,
     "hoist_funs": false,
     "pure_getters": false,

@@ -74,7 +74,8 @@ if [ -n "${INDEX_AUTOPLAY:-}" ]; then
   OUTPUT=index-alloy-autoplay.pbw
 fi
 # Code this build does not use is removed before bundling (see tools/strip.py): the
-# measuring code unless instrumented, the dictation code from the playtest.
+# measuring code unless instrumented, its native half in src/c too, the dictation code
+# from the playtest.
 STRIP=""
 [ "${INDEX_INSTRUMENT:-0}" = 1 ] || [ "${INDEX_SCROLLBENCH:-0}" != 0 ] || STRIP="$STRIP profile"
 [ "${INDEX_PLAYTEST:-0}" = 1 ] && STRIP="$STRIP dictation"
@@ -85,9 +86,22 @@ else
   STRIP="$STRIP autoreel"
 fi
 python3 "$ROOT/tools/strip.py" "$BUILD_DIR/src/embeddedjs" $STRIP
+python3 "$ROOT/tools/strip.py" "$BUILD_DIR/src/c" $STRIP
 # One module on the watch (see tools/bundle.py); the source stays modular.
 python3 "$ROOT/tools/bundle.py" "$BUILD_DIR/src/embeddedjs" "$BUILD_DIR/main.bundle.js"
 mv "$BUILD_DIR/main.bundle.js" "$BUILD_DIR/src/embeddedjs/main.js"
+# The manifest lists that one module, and of the native functions only those it still
+# names: an entry in the FFI table takes the app's heap for its glue code, a host function
+# and a key, so the profile's (renderLog and the rest) go with the code that calls them.
+python3 - "$BUILD_DIR/src/embeddedjs/manifest.json" "$BUILD_DIR/src/embeddedjs/main.js" <<'PY'
+import json, re, sys
+manifest = json.load(open(sys.argv[1]))
+manifest["modules"] = {"*": ["./main"]}
+named = set(re.findall(r"[A-Za-z_$][\w$]*", open(sys.argv[2]).read()))
+functions = manifest["ffi"]["functions"]
+manifest["ffi"]["functions"] = {name: functions[name] for name in functions if name in named}
+json.dump(manifest, open(sys.argv[1], "w"), indent="\t")
+PY
 # The bundle's local names are shortened and its literal constants folded in (terser,
 # tools/terser.json; `npm install` in tools/ fetches it). On the watch every distinct name
 # is a symbol in the mod and a key in the heap, and every module constant a closure slot:
@@ -99,24 +113,31 @@ if [ "${INDEX_MANGLE:-1}" != 0 ]; then
   # Index's own property names (a card's `lines`, Chat's methods) are shortened as well,
   # all but the names the host or the data could reach: tools/terser-reserved.json, made by
   # tools/reserved_names.py from the host's sources. INDEX_MANGLE=1 keeps property names.
+  # Terser writes a constant's value in where it is used only if that makes the text no
+  # longer than the name (plus its share of the declaration), and when it is also to mangle
+  # it counts every name it will shorten as one character, so it keeps any number of more
+  # than a digit or two as a variable, which every function using it captures: heap on the
+  # watch, where the number would cost a few bytes of code. It therefore folds the constants
+  # in a run without mangling, judging by the source's names, and shortens the names in a
+  # second run. The first leaves quoted property names quoted, as the second keeps those
+  # (keep_quoted).
   python3 - "$ROOT/tools/terser.json" "$ROOT/tools/terser-reserved.json" "${INDEX_MANGLE:-2}" \
-    "$BUILD_DIR/terser.json" <<'PY'
+    "$BUILD_DIR" <<'PY'
 import json, sys
 config = json.load(open(sys.argv[1]))
 if sys.argv[3] == "2":
     config["mangle"]["properties"] = {"regex": "^[A-Za-z_][A-Za-z0-9_]{3,}$", "keep_quoted": True,
                                       "reserved": json.load(open(sys.argv[2]))}
-json.dump(config, open(sys.argv[4], "w"))
+json.dump({**config, "mangle": False, "compress": {**config["compress"], "properties": False},
+           "format": {**config["format"], "keep_quoted_props": True}},
+          open(sys.argv[4] + "/terser-compress.json", "w"))
+json.dump({**config, "compress": False}, open(sys.argv[4] + "/terser-mangle.json", "w"))
 PY
-  "$TERSER" "$BUILD_DIR/src/embeddedjs/main.js" --config-file "$BUILD_DIR/terser.json" \
-    -o "$BUILD_DIR/src/embeddedjs/main.js"
+  for STEP in compress mangle; do
+    "$TERSER" "$BUILD_DIR/src/embeddedjs/main.js" --config-file "$BUILD_DIR/terser-$STEP.json" \
+      -o "$BUILD_DIR/src/embeddedjs/main.js"
+  done
 fi
-python3 - "$BUILD_DIR/src/embeddedjs/manifest.json" <<'PY'
-import json, sys
-manifest = json.load(open(sys.argv[1]))
-manifest["modules"] = {"*": ["./main"]}
-json.dump(manifest, open(sys.argv[1], "w"), indent="\t")
-PY
 (cd "$BUILD_DIR" && pebble build)
 mkdir -p "$ROOT/dist"
 cp "$BUILD_DIR/build/$(basename "$BUILD_DIR").pbw" "$ROOT/dist/$OUTPUT"

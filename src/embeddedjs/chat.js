@@ -109,7 +109,7 @@ const WAVE_LEFT = DIVIDER_LEFT + ((DIVIDER_DOTS - WAVE_BARS) >> 1) * DIVIDER_PIT
 // The words in, that bubble conforms to the user's bubble and pushes itself up into the
 // page as it (LIFT_MS), the waveform drawing back into its middle over the first WAVE_OUT
 // of the way (of NORMAL_MAX).
-const LIFT_MS = 300, WAVE_OUT = Math.trunc(NORMAL_MAX * 2 / 5);
+const LIFT_MS = 300, WAVE_OUT = NORMAL_MAX * 2 / 5 | 0;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
@@ -145,14 +145,16 @@ const span = [0, 0];
 const body = {x: 0, y: 0, w: 0};
 
 // The recording's bubble `open` (0 to NORMAL_MAX) of the way from the microphone's circle
-// to the divider's width: its left edge, width and corner radius, into `shape`.
+// to the divider's width: its left edge, width and corner radius, into `shape`. Here and
+// throughout this file, `| 0` truncates as Math.trunc would, in less code than the call:
+// what it truncates is never more than NORMAL_MAX, far inside its 32 bits.
 const shape = [0, 0, 0];
-function openShape(open) {
+const openShape = open => {
   const left = DOCK_X - BUBBLE_RADIUS, size = 2 * BUBBLE_RADIUS;
-  shape[0] = left - Math.trunc((left - DIVIDER_LEFT) * open / NORMAL_MAX);
-  shape[1] = size + Math.trunc((LISTEN_WIDTH - size) * open / NORMAL_MAX);
-  shape[2] = BUBBLE_RADIUS - Math.trunc((BUBBLE_RADIUS - PILL_RADIUS) * open / NORMAL_MAX);
-}
+  shape[0] = left - ((left - DIVIDER_LEFT) * open / NORMAL_MAX | 0);
+  shape[1] = size + ((LISTEN_WIDTH - size) * open / NORMAL_MAX | 0);
+  shape[2] = BUBBLE_RADIUS - ((BUBBLE_RADIUS - PILL_RADIUS) * open / NORMAL_MAX | 0);
+};
 
 export default class Chat {
   // `talk()` is a tap on the microphone.
@@ -417,13 +419,13 @@ export default class Chat {
       const lead = easeInOut(segmented(progress, 0, 2, STRETCH_POINT));
       const trail = easeInOut(segmented(progress, 1, 2, STRETCH_POINT));
       const both = easeInOut(progress);
-      lift.top = startTop + Math.trunc((top - startTop) * lead / NORMAL_MAX);
-      lift.bottom = startBottom + Math.trunc((bottom - startBottom) * trail / NORMAL_MAX);
-      lift.x = x + Math.trunc((query.x - x) * both / NORMAL_MAX);
-      lift.w = w + Math.trunc((query.w - w) * both / NORMAL_MAX);
-      lift.radius = radius + Math.trunc((PILL_RADIUS - radius) * both / NORMAL_MAX);
-      lift.half = half >= 0 && progress < WAVE_OUT ? Math.trunc(half * (WAVE_OUT - progress) / WAVE_OUT) : -1;
-      this.offsetChanged(from + Math.trunc((to - from) * lead / NORMAL_MAX));
+      lift.top = startTop + ((top - startTop) * lead / NORMAL_MAX | 0);
+      lift.bottom = startBottom + ((bottom - startBottom) * trail / NORMAL_MAX | 0);
+      lift.x = x + ((query.x - x) * both / NORMAL_MAX | 0);
+      lift.w = w + ((query.w - w) * both / NORMAL_MAX | 0);
+      lift.radius = radius + ((PILL_RADIUS - radius) * both / NORMAL_MAX | 0);
+      lift.half = half >= 0 && progress < WAVE_OUT ? half * (WAVE_OUT - progress) / WAVE_OUT | 0 : -1;
+      this.offsetChanged(from + ((to - from) * lead / NORMAL_MAX | 0));
       this.invalidateDock();
     }, () => {
       // The entry takes the bubble's place, exactly where it landed; the next frame paints
@@ -484,7 +486,7 @@ export default class Chat {
     this.timer = setTimeout(() => {
       const query = this.items[index];
       new Animation(FADE_MS, easeInOut, progress => {
-        query.shade = 255 - Math.trunc(progress * 255 / NORMAL_MAX);
+        query.shade = 255 - (progress * 255 / NORMAL_MAX | 0);
         this.invalidateArea(query.y, query.y + query.h);
       }, () => {
         if (!flying) this.landResult();
@@ -518,7 +520,7 @@ export default class Chat {
     }
     // The result rises into place as it darkens in; only its band repaints.
     new Animation(REVEAL_MS, easeOut, progress => {
-      item.rise = RISE - Math.trunc(RISE * progress / NORMAL_MAX);
+      item.rise = RISE - (RISE * progress / NORMAL_MAX | 0);
       item.shade = progress < NORMAL_MAX / 3 ? 85 : progress < NORMAL_MAX * 2 / 3 ? 170 : 255;
       this.invalidateArea(item.y, item.y + item.h + RISE);
     }).schedule();
@@ -567,7 +569,7 @@ export default class Chat {
     // A ScrollLayer's animation: 250ms ease-in-out, or ease-out when it interrupts one.
     const from = this.offset;
     this.scrollAnimation = new Animation(SCROLL_MS, running ? easeOut : easeInOut, progress => {
-      this.offsetChanged(this.clamp(from + Math.trunc((target - from) * progress / NORMAL_MAX)));
+      this.offsetChanged(this.clamp(from + ((target - from) * progress / NORMAL_MAX | 0)));
     }).schedule();
   }
 
@@ -761,7 +763,7 @@ export default class Chat {
     const bearing = this.headerHeight === 28 ? 10 : 7;
     const descender = this.headerHeight === 28 ? 4 : 3;
     const inkHeight = this.clockFont.height - bearing + descender;
-    this.clockTop = this.headerHeight === 28 ? Math.trunc((this.headerHeight - 1 - inkHeight) / 2) - bearing
+    this.clockTop = this.headerHeight === 28 ? ((this.headerHeight - 1 - inkHeight) / 2 | 0) - bearing
                                              : STATUS_DIGITS_TOP - bearing;
     this.clockX = (WIDTH - textWidth(this.clock, this.clockFont)) >> 1;
     this.invalidate();
@@ -1042,7 +1044,7 @@ export default class Chat {
     } else if (item.type === "query") {
       // The user's words: a solid pill with no tail, so it never reads as Index. As the
       // result comes in it fades away.
-      const step = shade >= 255 ? 3 : Math.trunc(shade * 3 / 255);
+      const step = shade >= 255 ? 3 : shade * 3 / 255 | 0;
       if (!step) return;
       render.drawRoundRect(x, y, w, h, FADE_BLUES[step - 1], PILL_RADIUS, GCORNERS_ALL);
       // Its words, as they show (transcribe): from the bubble's blue, unseen, to white.
@@ -1202,8 +1204,8 @@ export default class Chat {
     const page = this.contentHeight - this.headerHeight;
     if (page <= visible) return;
     const track = visible - 20;
-    const height = Math.max(12, Math.trunc(track * visible / page));
-    const top = this.headerHeight + 10 + Math.trunc(this.offset * (track - height) / this.maxOffset);
+    const height = Math.max(12, track * visible / page | 0);
+    const top = this.headerHeight + 10 + (this.offset * (track - height) / this.maxOffset | 0);
     render.drawRoundRect(2, top, 2, height, DARK_GRAY, 1, GCORNERS_ALL);
   }
 }

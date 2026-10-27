@@ -1,6 +1,9 @@
 // Pebble's animation timing, ported from the firmware (applib/ui/animation_timing.c) so
 // Index moves exactly as the native app did: the same normalised progress, easing tables
-// and segmented delays, stepped every 10 ms.
+// and segmented delays, stepped every 10 ms. Quotients are truncated with `| 0`, as the
+// firmware's integer division truncates them, which is less bytecode than Math.trunc (and
+// bytecode is heap on the watch). `| 0` keeps only 32 bits, so a progress that can run
+// past its end is clamped first.
 import Time from "time";
 import {setInterval, clearInterval} from "timers";
 
@@ -21,15 +24,15 @@ const EASE_IN_OUT = Uint16Array.of(
   63488, 64384, 65024, 65408, 65535);
 
 // animation_timing_interpolate: linear between the table's entries.
-function interpolate(progress, table) {
+const interpolate = (progress, table) => {
   const max = table.length - 1;
   if (progress <= 0) return table[0];
   if (progress >= NORMAL_MAX) return table[max];
-  const stride = Math.trunc(NORMAL_MAX / max);
-  const index = Math.trunc(progress * max / NORMAL_MAX);
+  const stride = NORMAL_MAX / max | 0;
+  const index = progress * max / NORMAL_MAX | 0;
   const from = table[index];
-  return from + Math.trunc((table[index + 1] - from) * (progress - index * stride) / stride);
-}
+  return from + ((table[index + 1] - from) * (progress - index * stride) / stride | 0);
+};
 
 export const linear = progress => progress;
 export const easeOut = progress => interpolate(progress, EASE_OUT);
@@ -37,17 +40,17 @@ export const easeInOut = progress => interpolate(progress, EASE_IN_OUT);
 
 // animation_timing_segmented: item `index` of `count` runs for `fraction` (16.16 fixed
 // point) of the whole, the items' starts spread evenly over the rest.
-export function segmented(progress, index, count, fraction) {
+export const segmented = (progress, index, count, fraction) => {
   if (index < 0) return NORMAL_MAX;
   if (index >= count) return 0;
-  const duration = Math.trunc(NORMAL_MAX * fraction / 65536);
-  const delay = Math.trunc((NORMAL_MAX - duration) / count);
+  const duration = NORMAL_MAX * fraction / 65536 | 0;
+  const delay = (NORMAL_MAX - duration) / count | 0;
   const offset = progress - index * delay;
   if (offset < 0) return 0;
-  return Math.min(NORMAL_MAX, Math.trunc(offset * 65536 / fraction));
-}
+  return Math.min(NORMAL_MAX, offset * 65536 / fraction) | 0;
+};
 
-export const fraction = (numerator, denominator) => Math.trunc(numerator * 65536 / denominator);
+export const fraction = (numerator, denominator) => numerator * 65536 / denominator | 0;
 
 // Pebble's "moook" curve (applib/ui/animation_interpolate.c, interpolate_moook_soft), the
 // one Timeline moves its pins with on Up and Down: a wind-up of 0, 1 and 20 pixels towards
@@ -57,22 +60,22 @@ export const fraction = (numerator, denominator) => Math.trunc(numerator * 65536
 const MOOOK_IN = [0, 1, 20], MOOOK_OUT = [4, 2, 1, 0], MOOOK_MID = 3;
 export const MOOOK_MS = (MOOOK_IN.length + MOOOK_MID + MOOOK_OUT.length) * FRAME_MS;
 
-export function moook(progress, from, to) {
+export const moook = (progress, from, to) => {
   const direction = from === to ? 0 : from < to ? 1 : -1;
   if (!direction || progress >= NORMAL_MAX) return to;
   const total = MOOOK_IN.length + MOOOK_MID + MOOOK_OUT.length;
   const frame = Math.max(0, Math.min(total - 1,
-    Math.trunc((progress * total + Math.trunc(NORMAL_MAX / (2 * total))) / NORMAL_MAX)));
+    (progress * total + (NORMAL_MAX / (2 * total) | 0)) / NORMAL_MAX | 0));
   if (frame < MOOOK_IN.length) return from + direction * MOOOK_IN[frame];
   if (frame < MOOOK_IN.length + MOOOK_MID) {
-    const shifted = progress - Math.trunc(MOOOK_IN.length * NORMAL_MAX / total);
-    const midProgress = Math.trunc(total * shifted / MOOOK_MID);
+    const shifted = progress - (MOOOK_IN.length * NORMAL_MAX / total | 0);
+    const midProgress = total * shifted / MOOOK_MID | 0;
     const start = from + direction * MOOOK_IN[MOOOK_IN.length - 1];
     const end = to + direction * MOOOK_OUT[0];
-    return start + Math.trunc(midProgress * (end - start) / NORMAL_MAX);
+    return start + (midProgress * (end - start) / NORMAL_MAX | 0);
   }
   return to + direction * MOOOK_OUT[frame - MOOOK_IN.length - MOOOK_MID];
-}
+};
 
 // Milliseconds on the watch's monotonic tick counter. Date.now() is not usable for motion:
 // it can read a second ahead, then back, as the second rolls over.
@@ -84,13 +87,11 @@ const running = [];
 let ticker;
 let frameHandler;
 
-export function onFrame(handler) {
+export const onFrame = handler => {
   frameHandler = handler;
-}
+};
 
-export function isAnimating() {
-  return ticker !== undefined;
-}
+export const isAnimating = () => ticker !== undefined;
 
 export class Animation {
   constructor(duration, curve, update, stopped) {
@@ -118,7 +119,7 @@ export class Animation {
 // tick is garbage, and collections stall motion on the watch.
 const stepping = [];
 
-function tick() {
+const tick = () => {
   const time = now();
   stepping.length = 0;
   for (let index = 0; index < running.length; index++) stepping.push(running[index]);
@@ -127,7 +128,7 @@ function tick() {
     if (!animation.scheduled) continue;
     const elapsed = time - animation.started;
     const progress = animation.duration > 0
-      ? Math.min(NORMAL_MAX, Math.trunc(elapsed * NORMAL_MAX / animation.duration)) : NORMAL_MAX;
+      ? Math.min(NORMAL_MAX, elapsed * NORMAL_MAX / animation.duration) | 0 : NORMAL_MAX;
     animation.update(animation.curve(progress));
     if (progress >= NORMAL_MAX && animation.scheduled) {
       animation.unschedule();
@@ -139,4 +140,4 @@ function tick() {
     clearInterval(ticker);
     ticker = undefined;
   }
-}
+};

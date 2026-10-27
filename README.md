@@ -125,23 +125,40 @@ Then XS's heaps grow into it as the code loads (a function object for every func
 a key for every distinct name) and as turns run, and never shrink; native art takes what
 is left. Running out is fatal in one of two ways: XS aborts ("Alloy: Fatal Error, memory
 full"), or a native allocation fails and the app faults (`App fault! PC: 0`, straight
-back to the launcher). An empty mod leaves 104 KB free; Index now leaves about 35 KB at
-launch and 22 KB after ten turns with scrolling, measured on the emulator, whose figures
-match the watch's exactly for the same build. Where the rest went, and what keeps it:
+back to the launcher). An empty mod leaves 104 KB free; the playtest now leaves about
+37 KB at launch and 29.7 KB at its lowest over ten turns with scrolling, and the voice
+build about 30 KB and 24.5 KB over ten questions (2026-10-27), measured on the emulator,
+whose figures match the watch's exactly for the same build. Where the rest went, and
+what keeps it:
 
-- The mod is 41 KB, 34 of it bytecode. Every distinct identifier in it was a symbol in
-  the archive and a 16-byte key in the heap, with its name, until the build began to
-  shorten names: terser mangles the bundle's local names, and its property names too
-  except those the host or the data can reach (`tools/terser-reserved.json`, every
-  identifier in the host's own sources plus the widget names and the FFI table; regenerate
-  it with `tools/reserved_names.py` when the SDK changes). The bundler passes exports by
-  position for the same reason. That took the names from 669 symbols (20 KB of heap all
+- The mod is about 42 KB (the voice build's about 2 KB more). Every distinct identifier
+  in it was a symbol in the archive and a 16-byte key in the heap, with its name, until
+  the build began to shorten names: terser mangles the bundle's local names, and its
+  property names too except those the host or the data can reach
+  (`tools/terser-reserved.json`, every identifier in the host's own sources plus the
+  widget names and the FFI table; regenerate it with `tools/reserved_names.py` when the
+  SDK changes). The bundler passes exports by position for the same reason. That took the names from 669 symbols (20 KB of heap all
   told) to the 110 the host needs. `INDEX_MANGLE=1` keeps property names, `=0` all names,
   for readable bytecode when debugging.
+- A constant kept as a name is a variable that every function using it captures, a 16-byte
+  slot each. So the bundler gives importers the value of an export that is a number rather
+  than passing it, and writes in the screen's size and the colours made from numbers
+  (Emery is Index's only platform); terser then folds constants into the code that uses
+  them, judging by the source's names before it shortens them (`tools/build.sh`).
+- A function is an object made each time the code defining it runs. Terser would paste
+  a function used once into the function calling it (`metric()` into the text drawing,
+  `frameWait()` into each frame's), where it is made again on every call: garbage for
+  every line of text drawn and every frame. `reduce_funcs: false` in `tools/terser.json`
+  keeps such a function where it is defined. An ordinary `function` also gets a prototype
+  object as it is made (48 bytes), which arrows and methods do not, so the modules use
+  those; and `x | 0` truncates where `Math.trunc(x)` did, in less code, wherever the value
+  is well inside 32 bits.
 - Code a build does not use is removed by `tools/strip.py` (blocks between
-  `// @strip NAME` and `// @endstrip`): the measuring code unless instrumented, and from
-  the playtest the dictation session, the spoken-request matching (`resolve`), the notice
-  bubble and the page's hiding. `assets.js` lists only the resource ids the modules name.
+  `// @strip NAME` and `// @endstrip`): the measuring code unless instrumented, its native
+  half in `src/c` too, and from the playtest the dictation session, the spoken-request
+  matching (`resolve`), the notice bubble and the page's hiding. The FFI table keeps only
+  the native functions the bundle still names, and `assets.js` only the resource ids the
+  modules name.
   `sh tools/xsb_sizes.sh` prints each module's bytecode size.
 - Every live object, closure and table entry costs 16-byte slots; prefer code to
   data tables, keep per-entry properties few, and let go of what a turn made as soon
@@ -149,7 +166,10 @@ match the watch's exactly for the same build. Where the rest went, and what keep
   several KB that never came back.
 - The history keeps 7 entries, each with only its wrapped lines.
 - Art is looked up per draw (two images cached), so it is freed once off screen. The
-  map is a vector image: a bitmap of it would take ~9 KB while shown. Animation frames
+  map is a vector image: a bitmap of it would take ~9 KB while shown. Alloy's bitmaps
+  never free their native memory, so the bitmaps Index draws are drawn natively
+  (`src/c/scroll.c`): the thinking cube's frames one at a time, and the weather card's
+  icon loaded for each draw and freed straight after. Animation frames
   and clones are native memory XS cannot see, so they are collected every second or
   third frame: a collection costs 2 ms on the watch.
 - Poco's own row and display-list buffers are unused on Pebble and kept to the least it

@@ -26,22 +26,22 @@ let timeWidth, linkWidth;
 // A row of text with its cap ink at the current row: `capTop` is where the face's cap ink
 // starts inside its text box and `cap` how tall it is (from the PBFs), so rows are spaced
 // on ink. Tone 0 is ink, 1 quiet grey, 2 cobalt. Moves down past the row and `after`.
-function text(string, family, size, capTop, cap, after, tone = 0, indent = 0) {
+const text = (string, family, size, capTop, cap, after, tone = 0, indent = 0) => {
   if (frame) {
     const color = tone === 2 && shade === 255 ? COBALT : ink(tone === 1 ? Math.min(shade, 170) : shade);
     drawText(string, font(family, size), color, frame.x + PADDING + indent, y - capTop);
   }
   y += cap + after;
-}
+};
 
 const label = string => text(string, "Gothic-Bold", 14, 5, 9, 8, 1);
 
-function rule() {
+const rule = () => {
   if (frame) render.drawLine(frame.x + PADDING, y, frame.x + frame.w - PADDING - 1, y, LIGHT_GRAY, 1);
   y += 11;
-}
+};
 
-function today() {
+const today = () => {
   label("TO-DOS");
   for (let index = 0; index < TODOS.length; index++) {
     // A box, its cap-height text centred on it.
@@ -71,18 +71,18 @@ function today() {
     render.drawLine(x + 4, y + 5, x, y + 9, color, 2);
   }
   text("Open timeline", "Gothic-Bold", 18, 7, 11, 0, 2);
-}
+};
 
-function translate() {
+const translate = () => {
   label("ENGLISH");
   text("afternoon", "Gothic-Regular", 28, 10, 18, 10);
   rule();
   label("SPANISH");
   text("la tarde", "Gothic-Bold", 28, 10, 18, 9, 2);
   text("feminine noun", "Gothic-Regular", 18, 7, 11, 0, 1);
-}
+};
 
-function map() {
+const map = () => {
   if (frame && shade === 255) {
     // Only when its rows are being painted: the map is the page's largest art.
     if (inBand(y, y + MAP_HEIGHT)) {
@@ -100,11 +100,11 @@ function map() {
   text("Elizabeth", "Gothic-Bold", 24, 10, 14, 9);
   text("10 Berners St, London", "Gothic-Regular", 18, 7, 11, 6);
   text("Updated 2 min ago", "Gothic-Regular", 14, 5, 9, 0, 1);
-}
+};
 
 // Runs a card's body: draws it into `body` ({x, y, w}) at `opacity`, or with no body only
 // measures it. Returns the body's height.
-function run(card, body, opacity) {
+const run = (card, body, opacity) => {
   frame = body;
   shade = opacity;
   const top = body ? body.y : 0;
@@ -112,7 +112,7 @@ function run(card, body, opacity) {
   card();
   frame = undefined;
   return y - top + PADDING + 2;
-}
+};
 
 export const CARDS = {};
 for (const [name, card] of [["today", today], ["translate", translate], ["map", map]]) {

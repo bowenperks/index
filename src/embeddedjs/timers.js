@@ -8,33 +8,30 @@ const jobs = [];
 let nextId = 1;
 let nativeTimer;
 
-function add(callback, delay, repeating, args) {
+const add = (callback, delay, repeating, args) => {
   if (typeof callback !== "function") throw new TypeError("Timer callback must be a function");
-  delay = Math.max(0, Math.min(0x7fffffff, Math.trunc(Number(delay) || 0)));
+  // Clamped before `| 0` drops the fraction, as that keeps only 32 bits.
+  delay = Math.max(0, Math.min(0x7fffffff, Number(delay) || 0)) | 0;
   const interval = repeating ? Math.max(TICK_MS, delay) : 0;
   const id = nextId++;
   jobs.push({id, callback, args, interval, due: (Time.ticks + (interval || delay)) >>> 0});
   return id;
-}
+};
 
-export function setTimeout(callback, delay = 0, ...args) {
-  return add(callback, delay, false, args);
-}
+export const setTimeout = (callback, delay = 0, ...args) => add(callback, delay, false, args);
 
-export function setInterval(callback, delay = 0, ...args) {
-  return add(callback, delay, true, args);
-}
+export const setInterval = (callback, delay = 0, ...args) => add(callback, delay, true, args);
 
-export function clearTimeout(id) {
+export const clearTimeout = id => {
   const index = jobs.findIndex(job => job.id === id);
   if (index >= 0) jobs.splice(index, 1);
-}
+};
 
-export function clearInterval(id) {
+export const clearInterval = id => {
   clearTimeout(id);
-}
+};
 
-function pump() {
+const pump = () => {
   if (!jobs.length) return;
   const now = Time.ticks >>> 0;
   // A snapshot defers newly scheduled jobs until the next tick. A callback may also
@@ -57,11 +54,11 @@ function pump() {
     }
     job.callback(...job.args);
   }
-}
+};
 
 // Start after the app has finished constructing its page and registering initial jobs.
 // Keep this one timer alive even while idle; callbacks never add or remove native timers.
-export function startTimers() {
+export const startTimers = () => {
   if (nativeTimer !== undefined) return;
   nativeTimer = globalThis.setInterval(pump, TICK_MS);
-}
+};

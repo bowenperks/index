@@ -11,10 +11,10 @@ export const MIC_WIDTH = 21, MIC_HEIGHT = 28;   // the microphone's canvas
 let glyph;
 
 // The microphone centred on (cx, cy), as an IconTransition places it.
-export function drawMic(cx, cy) {
+export const drawMic = (cx, cy) => {
   glyph ??= new Poco.PebbleDrawCommandImage(MIC_SMALL);
   render.drawDCI(glyph, cx - (MIC_WIDTH >> 1), cy - (MIC_HEIGHT >> 1));
-}
+};
 
 // A live recording's waveform: bars scroll in from the right, their heights following a
 // speech-like envelope of syllables and pauses.
@@ -30,18 +30,20 @@ export class Waveform {
     this.pause = 2;
   }
 
-  // Adds the next sample (0-255).
+  // Adds the next sample (0-255). Here and in draw(), `| 0` truncates as Math.trunc would,
+  // in less code than the call: what it truncates is never more than 255, far inside its
+  // 32 bits.
   step() {
     let level;
     if (this.pause > 0) {
       this.pause--;
-      level = Math.trunc(Math.random() * 30);
+      level = Math.random() * 30 | 0;
     } else {
       // A syllable rises and falls over a few samples; words end in a short pause.
       this.syllable = (this.syllable + 1) % 5;
       const shape = [120, 230, 255, 180, 90][this.syllable];
-      level = Math.trunc(shape * (0.55 + Math.random() * 0.45));
-      if (this.syllable === 4 && Math.random() < 0.35) this.pause = 1 + Math.trunc(Math.random() * 2);
+      level = shape * (0.55 + Math.random() * 0.45) | 0;
+      if (this.syllable === 4 && Math.random() < 0.35) this.pause = 1 + (Math.random() * 2 | 0);
     }
     this.levels.copyWithin(0, 1);
     this.levels[BARS - 1] = level;
@@ -54,7 +56,7 @@ export class Waveform {
     const middle = BARS >> 1;
     for (let index = middle - half; index <= middle + half; index++) {
       const level = index >= 0 && index < BARS ? this.levels[index] : 0;
-      const reach = Math.min(BAR_REACH, Math.trunc(BAR_REACH * level / 255) + extra);
+      const reach = Math.min(BAR_REACH, (BAR_REACH * level / 255 | 0) + extra);
       render.fillRectangle(color, x + index * BAR_PITCH, top - reach, BAR_WIDTH, 2 + 2 * reach);
     }
   }

@@ -27,22 +27,23 @@ const FLY_POINT_DURATION = fraction(2, 3), FLY_EFFECT_DURATION = fraction(2, 3);
 const UNFOLD_EFFECT_DURATION = fraction(3, 4);
 const DELAY_STEPS = 32;      // the edges' delays: first and last of this many
 
-// The scale-segmented interpolation: eased, then linear.
-const tween = (progress, from, to) => from + Math.trunc((to - from) * easeInOut(progress) / NORMAL_MAX);
+// The scale-segmented interpolation: eased, then linear. Here and throughout this file,
+// `| 0` truncates as Math.trunc would, in less code than the call: what it truncates is
+// never more than NORMAL_MAX, far inside its 32 bits.
+const tween = (progress, from, to) => from + ((to - from) * easeInOut(progress) / NORMAL_MAX | 0);
 
 // gpoint_scale_to for one coordinate `value` of a `size` box moved `from` -> `to`.
-function scaleAxis(value, size, fromMin, fromRange, toMin, toRange, progress) {
-  return value + Math.trunc(value * tween(progress, fromRange - size, toRange - size) / size) +
-         tween(progress, fromMin, toMin);
-}
+const scaleAxis = (value, size, fromMin, fromRange, toMin, toRange, progress) =>
+  value + (value * tween(progress, fromRange - size, toRange - size) / size | 0) +
+  tween(progress, fromMin, toMin);
 
 // One coordinate through the two-stage transform (gdraw_command_list_scale_segmented_to
 // with an effect): first towards `middle` (the target grown, pushed past by the bounce),
 // then settled from there onto `to`. Rects are [min, range] on one axis.
-function twoStage(value, size, from, middle, to, first, second) {
+const twoStage = (value, size, from, middle, to, first, second) => {
   const across = scaleAxis(value, size, from[0], from[1], middle[0], middle[1], first);
   return scaleAxis(across - middle[0], middle[1], 0, middle[1], to[0] - middle[0], to[1], second) + middle[0];
-}
+};
 
 export default class IconTransition {
   constructor(invalidate, flying, finished) {
@@ -69,7 +70,7 @@ export default class IconTransition {
     const w = this.image.width, h = this.image.height;
     this.size = [w, h];
     this.dotStroke = Math.max(1, Math.round(DOT_STROKE * h / PEEK_ICON));
-    const expand = Math.trunc(UNFOLD_EXPAND * h / PEEK_ICON);
+    const expand = UNFOLD_EXPAND * h / PEEK_ICON | 0;
     this.large = {x: cx - (w >> 1), y: cy - (h >> 1), w, h};
     // Per axis (0 x, 1 y): the icon as [first pixel, size], the unfold's expanded box, and
     // the point it unfolds from. Worked out once: the span is wanted two or three times a
@@ -85,7 +86,7 @@ export default class IconTransition {
     this.active = true;
     const total = unfoldOnly ? UNFOLD_MS : TOTAL_MS;
     this.animation = new Animation(total, linear, progress => {
-      this.elapsed = Math.trunc(progress * total / NORMAL_MAX);
+      this.elapsed = progress * total / NORMAL_MAX | 0;
       if (!this.flyingStarted && this.elapsed >= UNFOLD_MS + HOLD_MS) {
         this.flyingStarted = true;
         this.flying?.();
@@ -101,12 +102,11 @@ export default class IconTransition {
   }
 
   retarget(to) {
-    this.to = to;
     // The bounce overshoots past the destination along the line of travel.
     const dx = to.x - this.large.x, dy = to.y - this.large.y;
     const magnitude = Math.floor(Math.sqrt(dx * dx + dy * dy));
-    const bounceX = magnitude ? Math.trunc(FLY_BOUNCE * dx / magnitude) : 0;
-    const bounceY = magnitude ? Math.trunc(FLY_BOUNCE * dy / magnitude) : 0;
+    const bounceX = magnitude ? FLY_BOUNCE * dx / magnitude | 0 : 0;
+    const bounceY = magnitude ? FLY_BOUNCE * dy / magnitude | 0 : 0;
     // Per axis: the destination as [first pixel, size] and the flight's expanded, pushed
     // past box it overshoots to.
     this.toAxis = [[to.x, to.w], [to.y, to.h]];
@@ -116,8 +116,13 @@ export default class IconTransition {
 
   release() {
     this.animation?.unschedule();
-    this.animation = undefined;
-    this.image = undefined;
+    // The arrays start() and retarget() worked out go with the run: they are a kilobyte or
+    // so of the heap for each of Chat's two transitions, which would otherwise stay taken
+    // between turns. (The image itself stays alive: Alloy's resource cache keeps it through
+    // a WeakRef, which XS holds until promise jobs run, and Index runs none, so dropping it
+    // here frees no native memory.)
+    this.animation = this.image = this.strokes = this.size = this.large = this.largeAxis =
+      this.unfoldMiddle = this.unfoldFrom = this.out = this.toAxis = this.flyMiddle = undefined;
     this.active = false;
     // The flight's clones, freed before the next animation's art: without this the app
     // ran out of memory over a few turns.
@@ -134,7 +139,7 @@ export default class IconTransition {
     const size = this.size[axis], large = this.largeAxis[axis], out = this.out;
     if (this.elapsed < UNFOLD_MS + HOLD_MS) {
       // The unfold: out of a point at the icon's centre, past its size, back onto it.
-      const progress = this.elapsed >= UNFOLD_MS ? NORMAL_MAX : Math.trunc(this.elapsed * NORMAL_MAX / UNFOLD_MS);
+      const progress = this.elapsed >= UNFOLD_MS ? NORMAL_MAX : this.elapsed * NORMAL_MAX / UNFOLD_MS | 0;
       const from = this.unfoldFrom[axis], middle = this.unfoldMiddle[axis];
       const first = segmented(progress, 0, 2, UNFOLD_EFFECT_DURATION);
       const second = segmented(progress, 1, 2, UNFOLD_EFFECT_DURATION);
@@ -146,7 +151,7 @@ export default class IconTransition {
     // each on its own delay, so the icon stretches towards it, then overshoots with the
     // bounce and squashes back onto it.
     const fly = this.elapsed - UNFOLD_MS - HOLD_MS;
-    const progress = fly >= FLY_MS ? NORMAL_MAX : Math.trunc(fly * NORMAL_MAX / FLY_MS);
+    const progress = fly >= FLY_MS ? NORMAL_MAX : fly * NORMAL_MAX / FLY_MS | 0;
     const to = this.toAxis[axis], middle = this.flyMiddle[axis];
     const first = segmented(progress, 0, 2, FLY_EFFECT_DURATION);
     const second = segmented(progress, 1, 2, FLY_EFFECT_DURATION);
@@ -176,11 +181,11 @@ export default class IconTransition {
     // (the dock's icons have the cards' icons' strokes).
     let index = 0, unfolding = this.elapsed < UNFOLD_MS + HOLD_MS, progress;
     if (unfolding) {
-      const unfold = this.elapsed >= UNFOLD_MS ? NORMAL_MAX : Math.trunc(this.elapsed * NORMAL_MAX / UNFOLD_MS);
+      const unfold = this.elapsed >= UNFOLD_MS ? NORMAL_MAX : this.elapsed * NORMAL_MAX / UNFOLD_MS | 0;
       progress = easeInOut(unfold >= NORMAL_MAX / 4 ? NORMAL_MAX : unfold * 4);
     } else {
       const fly = this.elapsed - UNFOLD_MS - HOLD_MS;
-      progress = easeInOut(fly >= FLY_MS ? NORMAL_MAX : Math.trunc(fly * NORMAL_MAX / FLY_MS));
+      progress = easeInOut(fly >= FLY_MS ? NORMAL_MAX : fly * NORMAL_MAX / FLY_MS | 0);
     }
     list.process(command => {
       const native = this.strokes[index++];
@@ -189,7 +194,7 @@ export default class IconTransition {
         command.strokeWidth = native;
         return;
       }
-      const eighths = this.dotStroke * 8 + Math.trunc((native - this.dotStroke) * 8 * progress / NORMAL_MAX);
+      const eighths = this.dotStroke * 8 + ((native - this.dotStroke) * 8 * progress / NORMAL_MAX | 0);
       command.strokeWidth = (eighths + 4) >> 3;
     });
     render.drawDCI(list, left, top);

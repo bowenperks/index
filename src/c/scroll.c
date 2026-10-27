@@ -11,6 +11,12 @@ static GContext *s_ctx;
 // builds compare it with the frames drawn).
 static int32_t s_renders;
 
+// @strip profile
+// The render passes' timing is for the profile of instrumented builds and the scroll
+// bench only. Other builds leave it out (tools/strip.py), and its functions out of their
+// FFI table (tools/build.sh): the app's native code is loaded into the same memory as its
+// heap, and each function in the table is a host function and a key in that heap too.
+
 // Milliseconds on the wall clock (seconds wrap every ~28 hours of uptime: harmless here).
 static int32_t prv_now_ms(void) {
   time_t seconds;
@@ -24,10 +30,12 @@ static int32_t prv_now_ms(void) {
 static int32_t s_render_at, s_gap_min = 0x7fffffff, s_gap_max, s_gap_sum, s_gap_count;
 static bool s_gap_skip;
 static uint8_t s_gaps[48];
+// @endstrip
 
 static void prv_keep_context(Layer *layer, GContext *ctx) {
   s_ctx = ctx;
   s_renders++;
+  // @strip profile
   const int32_t now = prv_now_ms();
   if (s_render_at && !s_gap_skip) {
     const int32_t gap = now - s_render_at;
@@ -39,8 +47,10 @@ static void prv_keep_context(Layer *layer, GContext *ctx) {
   }
   s_gap_skip = false;
   s_render_at = now;
+  // @endstrip
 }
 
+// @strip profile
 int32_t renderStamp(void) {
   return s_render_at;
 }
@@ -66,6 +76,7 @@ void renderLog(void) {
   // The gap to the next pass spans whatever came before this reading: not counted.
   s_gap_skip = true;
 }
+// @endstrip
 
 // Called after the first frame, which is when Poco sets its stub.
 void hookRender(void) {
@@ -79,8 +90,10 @@ int32_t renderCount(void) {
 
 // The thinking cube's frames are bitmaps (tools/build_cube.py), drawn here with their
 // transparency. One is kept loaded at a time and freed when the next replaces it or the
-// cube goes: Alloy's own bitmaps (Poco.PebbleBitmap) never free their native memory. A
-// frame that cannot be loaded (memory) is skipped. Returns whether it drew.
+// cube goes: Alloy's own bitmaps (Poco.PebbleBitmap) stay loaded once made, as Alloy's
+// resource cache holds each through a WeakRef, and XS keeps a WeakRef's object alive
+// until promise jobs next run, which Index never queues (measured). A frame that cannot
+// be loaded (memory) is skipped. Returns whether it drew.
 static GBitmap *s_cube;
 static int32_t s_cube_id;
 
@@ -103,6 +116,21 @@ void cubeRelease(void) {
   if (s_cube) gbitmap_destroy(s_cube);
   s_cube = NULL;
   s_cube_id = 0;
+}
+
+// A card's bitmap (the weather card's icon), drawn with its transparency as Poco draws one,
+// loaded for the draw and freed straight after, so it holds no memory between frames. Not
+// the cube's slot: the cube and the card can both be on the screen. A bitmap that cannot
+// be loaded (memory) is skipped.
+void bitmapDraw(int32_t id, int32_t x, int32_t y) {
+  if (!s_ctx) return;
+  GBitmap *bitmap = gbitmap_create_with_resource(id);
+  if (!bitmap) return;
+  GRect bounds = gbitmap_get_bounds(bitmap);
+  graphics_context_set_compositing_mode(s_ctx, GCompOpSet);
+  graphics_draw_bitmap_in_rect(s_ctx, bitmap, GRect(x, y, bounds.size.w, bounds.size.h));
+  graphics_context_set_compositing_mode(s_ctx, GCompOpAssign);
+  gbitmap_destroy(bitmap);
 }
 
 // For the scroll bench's micro-benchmark (tools/bench.c).

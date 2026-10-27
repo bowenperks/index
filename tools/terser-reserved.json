@@ -1217,6 +1217,7 @@
 "binding",
 "bindings",
 "bitmap",
+"bitmapDraw",
 "bits",
 "blend",
 "blendColors",

@@ -4,16 +4,14 @@
 
 // What Index has done before, oldest first, as the phone's Index feed lists it: a day
 // label, or a result's widget and text. Made on request so it is not kept after use.
-export function history() {
-  return [
-    ["Yesterday"],
-    ["", "reminder", "Reminder set for 1pm: change Liz's phone for the Pixel 9 Pro"],
-    ["", "home", "Unlocked the front door"],
-    ["Today"],
-    ["", "beeper", "Sent 'Cool, we're at home' to Danny"],
-    ["", "home", "Turned the fan off"],
-  ];
-}
+export const history = () => [
+  ["Yesterday"],
+  ["", "reminder", "Reminder set for 1pm: change Liz's phone for the Pixel 9 Pro"],
+  ["", "home", "Unlocked the front door"],
+  ["Today"],
+  ["", "beeper", "Sent 'Cool, we're at home' to Danny"],
+  ["", "home", "Turned the fan off"],
+];
 
 // The demo reel's requests, in order: [question, widget, result].
 export const DEMO = [
@@ -42,7 +40,7 @@ const MESSAGE = /message to (my )?(\w+)[.,:!]*\s+(.+?)[.!?]*$/i;
 
 // The result for a transcribed request: {widget, text}. A message names its own recipient
 // and words; anything unrecognised gets a plain text reply listing what to try.
-export function resolve(question) {
+export const resolve = question => {
   const spoken = (question ?? "").toLowerCase();
   const message = MESSAGE.exec(question ?? "");
   const exact = DEMO.find(([asked]) => asked.toLowerCase() === spoken.trim());
@@ -53,5 +51,5 @@ export function resolve(question) {
   if (found) return {widget: found[1], text: found[2]};
   return {text: "Try asking me to send a message, set a reminder or turn off the lights, " +
                 "what's on today, where Elizabeth is, the weather, or a Spanish word."};
-}
+};
 // @endstrip

@@ -2,7 +2,6 @@
 // Pebble's weather icon on its coloured disc with the condition, temperature and high / low
 // stacked beside it, and the report's forecast sentence beneath. The demo's data is
 // hardcoded: the address is 10 Berners Street, London.
-import Poco from "commodetto/Poco";
 import {WEATHER_DISC, WEATHER_ICON} from "assets";
 import {render, ink, font, drawText, textWidth, wrap, art, inBand} from "theme";
 
@@ -25,22 +24,20 @@ const CONDITION_GAP = 7, RANGE_GAP = 7, LOCATION_GAP = 10, DISC_GAP = 10;
 
 // Draws the content of a framed card whose body starts at `body` ({x, y, w}). Shade is the
 // reveal's opacity (255 = fully shown); the disc and icon appear once it is fully shown.
-export function drawWeather(card, body, shade) {
+export const drawWeather = (card, body, shade) => {
   const left = body.x + PADDING_X, top = body.y + PADDING_Y;
   const width = body.w - 2 * PADDING_X;
   const discTop = top + LOCATION_CAP + LOCATION_GAP;
   if (shade === 255 && inBand(discTop, discTop + DISC)) {
-    // Looked up per draw: Alloy caches a resource object only while something holds it, so
-    // keeping these would hold the 50px bitmap in the heap after the card scrolls away.
-    const disc = art(WEATHER_DISC);
-    const icon = new Poco.PebbleBitmap(WEATHER_ICON);
     const cx = left + DISC / 2, cy = discTop + DISC / 2;
-    render.drawDCI(disc, cx - DISC / 2, cy - DISC / 2);
-    render.drawBitmap(icon, cx - ICON / 2, cy - ICON / 2);
+    render.drawDCI(art(WEATHER_DISC), cx - DISC / 2, cy - DISC / 2);
+    // The 50px bitmap is loaded for this one draw and freed straight after, natively
+    // (scroll.c): one of Alloy's own bitmaps would stay in the heap for good once drawn.
+    Natives.bitmapDraw(WEATHER_ICON, cx - ICON / 2, cy - ICON / 2);
   }
   // The condition, temperature and high / low, right-aligned, centred as a group on the disc.
-  const conditionTop = discTop + Math.trunc((DISC - (CONDITION_CAP + CONDITION_GAP + TEMPERATURE_CAP +
-                                                     RANGE_GAP + RANGE_CAP)) / 2);
+  const conditionTop = discTop + ((DISC - (CONDITION_CAP + CONDITION_GAP + TEMPERATURE_CAP +
+                                           RANGE_GAP + RANGE_CAP)) / 2 | 0);
   const temperatureTop = conditionTop + CONDITION_CAP + CONDITION_GAP;
   const rangeTop = temperatureTop + TEMPERATURE_CAP + RANGE_GAP;
   const forecastTop = discTop + DISC + DISC_GAP;
@@ -64,4 +61,4 @@ export function drawWeather(card, body, shade) {
   for (let index = 0; index < lines.length; index++) {
     drawText(lines[index], forecastFont, color, left, forecastTop - FORECAST_CAP_TOP + index * lineHeight);
   }
-}
+};

@@ -46,34 +46,34 @@ const COPY_PERIOD_MS = 40;
 const PASS_TIMEOUT_MS = 100;
 let copyDue = -COPY_PERIOD_MS, submittedAt = 0, submittedPasses = -1;
 
-function frameWait() {
+const frameWait = () => {
   const time = now();
   if (submittedPasses >= 0 && Natives.renderCount() === submittedPasses &&
       time - submittedAt < PASS_TIMEOUT_MS) {
     return 2;
   }
   return copyDue + 2 - time;
-}
+};
 
-function frameSubmitted() {
+const frameSubmitted = () => {
   submittedAt = now();
   submittedPasses = Natives.renderCount();
   copyDue = Math.max(submittedAt, copyDue + COPY_PERIOD_MS);
-}
+};
 // @strip profile
 let lastDrawEnd = 0;
 // @endstrip
-function invalidate() {
+const invalidate = () => {
   drawPending = true;
   if (!isAnimating() && drawTimer === undefined) armDraw();
-}
+};
 
-function armDraw(wait = 0) {
+const armDraw = (wait = 0) => {
   drawTimer = setTimeout(() => {
     drawTimer = undefined;
     draw();
   }, wait);
-}
+};
 
 // Instrumented builds (INDEX_INSTRUMENT=1) keep, per phase of a turn, how many frames were
 // drawn, how long they took, and the longest wait between frames, and log it all once the
@@ -86,14 +86,14 @@ const SCROLL_BENCH = false;
 const profile = PROFILE ? {} : undefined;
 let profiling = false, renders = 0, scrollStart = 0, lastEndMs = 0, underCopy = 0;
 
-function record(key, gap, draw, texts) {
+const record = (key, gap, draw, texts) => {
   if (!chat.busy && chat.stretch === undefined) {
     if (!profiling) return;
     profiling = false;
     for (const name in profile) {
       const s = profile[name];
-      trace(`${name}: ${s.frames} frames, draw avg ${Math.trunc(s.sum / s.frames)} max ${s.max}, ` +
-            `gap max ${s.gap}, late ${s.late}, texts avg ${Math.trunc(s.texts / s.frames)} max ${s.textMax}\n`);
+      trace(`${name}: ${s.frames} frames, draw avg ${s.sum / s.frames | 0} max ${s.max}, ` +
+            `gap max ${s.gap}, late ${s.late}, texts avg ${s.texts / s.frames | 0} max ${s.textMax}\n`);
       delete profile[name];
     }
     const passes = Natives.renderCount();
@@ -126,10 +126,10 @@ function record(key, gap, draw, texts) {
     if (gap > 50) s.late++;
   }
   profiling = true;
-}
+};
 // @endstrip
 
-function draw() {
+const draw = () => {
   if (!drawPending) return;
   // While the system's dictation window is up, Index must not draw over it.
   if (dictating || !chat) {
@@ -156,31 +156,39 @@ function draw() {
   lastDrawEnd = end;
   lastEndMs = Natives.nowMs();
   // @endstrip
-}
+};
 
 onFrame(draw);
+
+// Select, or a tap on the microphone. Defined before the page, which is handed it.
+const talk = () => {
+  if (PLAYTEST) queuePlayNext();
+  // @strip dictation
+  else startDictation();
+  // @endstrip
+};
 
 const chat = new Chat(invalidate, talk);
 
 // @strip dictation
 import {resolve} from "prompts";
 // A transcribed question starts a turn, with Index's result for it known up front.
-function ask(question) {
+const ask = question => {
   if (!chat.ask(question, resolve(question))) {
     chat.showNotice("I couldn't start that question. Please try again.");
   }
-}
+};
 // @endstrip
 
-function playNext() {
+const playNext = () => {
   if (dictating || chat.busy) return;
   const [question, widget, text] = DEMO[nextDemo];
   if (!chat.listen(question, RECORDING_MS, {widget, text})) return;
   trace(`Index Alloy playtest ${nextDemo + 1}/${DEMO.length}: ${question}\n`);
   nextDemo = (nextDemo + 1) % DEMO.length;
-}
+};
 
-function queuePlayNext() {
+const queuePlayNext = () => {
   if (playtestPending || dictating || chat.busy) return;
   playtestPending = true;
   // Return from the firmware's button callback before laying out/drawing a turn.
@@ -189,7 +197,7 @@ function queuePlayNext() {
     playtestPending = false;
     playNext();
   }, 33);
-}
+};
 
 // @strip dictation
 const dictation = PLAYTEST ? undefined : new Dictation({
@@ -207,7 +215,7 @@ const dictation = PLAYTEST ? undefined : new Dictation({
 });
 dictation?.configure({confirm: true});
 
-function startDictation() {
+const startDictation = () => {
   if (!dictation || dictating || chat.busy) return;
   try {
     dictation.start();
@@ -217,23 +225,15 @@ function startDictation() {
   }
   dictating = true;
   chat.hide();
-}
+};
 
-function dictationFinished() {
+const dictationFinished = () => {
   dictating = false;
   chat.show();
   // Repaint once the dictation window has finished leaving, too.
   setTimeout(invalidate, 350);
-}
+};
 // @endstrip
-
-// Select, or a tap on the microphone.
-function talk() {
-  if (PLAYTEST) queuePlayNext();
-  // @strip dictation
-  else startDictation();
-  // @endstrip
-}
 
 const selectButton = new Button({
   type: "select",
@@ -313,13 +313,13 @@ if (SCROLL_BENCH) {
 // after each, to measure memory on the watch with nobody at its buttons.
 const AUTOREEL = 0;
 let reelTurn = 0;
-function reelNext() {
+const reelNext = () => {
   if (reelTurn++ >= AUTOREEL) return;
   talk();
   setTimeout(() => chat.scroll(false), 8000);
   setTimeout(() => chat.scroll(true), 8800);
   setTimeout(reelNext, 9600);
-}
+};
 if (PLAYTEST && AUTOREEL) setTimeout(reelNext, 3000);
 // @endstrip
 
