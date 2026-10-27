@@ -7,10 +7,11 @@ The sibling `../index` folder is the older native C implementation.
 
 ## What it looks like
 
-Index opens like a messaging app, on its history of results: newest at the bottom,
-a slim time bar on top, day labels ("Yesterday", "Today") between days, and below them
-the dock, the screen's bottom 49px: the Weather app's mainscreen divider (45 Dark Gray
-dots) across it, and on the divider, centred, the voice input in a blue bubble: Pebble's
+Index opens blank, like a new conversation in a messaging app: a slim time bar on top
+and, at the bottom, the dock. Its results gather above the dock, newest at the bottom
+(a history to open on can be given in `src/embeddedjs/prompts.js`, day labels such as
+"Yesterday" and "Today" between its days; the demo has none). The dock is the screen's
+bottom 49px: the Weather app's mainscreen divider (45 Dark Gray dots) across it, and on the divider, centred, the voice input in a blue bubble: Pebble's
 own microphone, the one the system dictation screen shows, redrawn for the dock on the
 pixel grid without its rays, as large as the bubble holds it (21 x 28), black with its
 capsule white inside. The divider's middle third
@@ -88,8 +89,8 @@ simulated 1.8 s recording, then its transcription, thinking, and the result:
 8. "What's the Spanish word for afternoon?" Translation card
 
 The next press loops back to the first. Presses while Index is busy are ignored.
-Relaunching returns to the seeded history; no microphone is needed. The demo's
-history, requests and results are in `src/embeddedjs/prompts.js`.
+Relaunching starts blank again; no microphone is needed. The demo's requests and
+results (and any history to open on) are in `src/embeddedjs/prompts.js`.
 
 The emulator must boot the 4.33.1 SDK's firmware (older SDKs predate Alloy), which
 `tools/emulator.py` does, on isolated ports so other emulators keep running.

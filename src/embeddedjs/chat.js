@@ -1,7 +1,8 @@
 // Index's one scrolling page, laid out like a messaging app: the history of what Index has
 // done, newest at the bottom, under a slim time bar, and below it the dock: a dotted
 // divider across the screen with the voice input, Pebble's microphone in a blue bubble,
-// sitting on it. The page opens on the newest results.
+// sitting on it. The page opens on the newest results, or blank when there is no history
+// (prompts.js history(), which the demo leaves empty).
 //
 // Asking opens the microphone's bubble across the divider, the recording's waveform
 // running along it in white; then that bubble becomes the user's whole message, pushing

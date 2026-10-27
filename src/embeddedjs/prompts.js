@@ -3,15 +3,9 @@
 // and its text). Nothing is really sent, set or switched.
 
 // What Index has done before, oldest first, as the phone's Index feed lists it: a day
-// label, or a result's widget and text. Made on request so it is not kept after use.
-export const history = () => [
-  ["Yesterday"],
-  ["", "reminder", "Reminder set for 1pm: change Liz's phone for the Pixel 9 Pro"],
-  ["", "home", "Unlocked the front door"],
-  ["Today"],
-  ["", "beeper", "Sent 'Cool, we're at home' to Danny"],
-  ["", "home", "Turned the fan off"],
-];
+// label (["Today"]), or a result's widget and text (["", "home", "Turned the fan off"]).
+// Made on request so it is not kept after use. The demo opens on a blank page: none.
+export const history = () => [];
 
 // The demo reel's requests, in order: [question, widget, result].
 export const DEMO = [
