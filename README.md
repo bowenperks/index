@@ -11,8 +11,8 @@ Index opens like a messaging app, on its history of results: newest at the botto
 a slim time bar on top, day labels ("Yesterday", "Today") between days, and below them
 the dock, the screen's bottom 49px: the Weather app's mainscreen divider (45 Dark Gray
 dots) across it, and on the divider, centred, the voice input in a blue bubble: Pebble's
-own microphone, the one the system dictation screen shows, black with its capsule white
-inside. The divider stops
+own microphone, the one the system dictation screen shows, redrawn for the dock on the
+pixel grid (27 x 28), black with its capsule white inside. The divider stops
 short of the bubble. Below the divider is the bar, the 29px of a PebbleOS notification's
 banner under its status bar (`LAYOUT_BANNER_HEIGHT_RECT`): white until the user speaks.
 The microphone and a result's icon are the banner icon's size (25px); the thinking cube
@@ -27,7 +27,8 @@ left-aligned, every line, and optically centred: as many empty rows above its fi
 line's capitals as below its last line's baseline, which in a card is the top of its
 corner icon's ink.
 
-Asking turns the bar blue, the recording's waveform running across it in white. Then
+Asking turns the dock blue, its divider's dots, white, becoming the recording's waveform:
+each grows up and down from its place as the voice comes in from the right. Then
 the whole transcribed message is pushed in from the bottom at once, and while Index
 thinks, the thinking cube grows out of a dot where the microphone was, the divider parted
 around it. When the result comes in, it takes the words' place: the history keeps

@@ -21,8 +21,7 @@ The frames ship as bitmaps of exactly that drawing: each is drawn at 8x with exa
 strokes and averaged down, every pixel then moved to the nearest of Pebble's 64 colours.
 As vector commands the firmware strokes these 2px lines nearer 4px, filling the
 stickers in; and the cube is only ever drawn on the dock's white, so its edges are
-blended with that white and the white left transparent (the divider is parted around
-the cube, so nothing shows through it).
+blended with that white, and everything around it left transparent.
 
     python3 tools/build_cube.py                     (needs shapely and Pillow)
     python3 tools/build_cube.py --preview DIR       (also a contact sheet, 4x)
@@ -326,11 +325,16 @@ def write_sequence(frames, path):
     path.write_bytes(b'PDCS' + struct.pack('<I', len(payload)) + payload)
 
 
-def preview(commands, zoom=8):
+def preview(commands, zoom=8, mask=False):
     """The frame drawn at `zoom` times with exact strokes and round joins, on the dock's
-    white, and averaged down."""
+    white, and averaged down; or, with `mask`, how much of each pixel it covers (0-255)."""
     from PIL import Image, ImageDraw
-    big = Image.new('RGB', (CANVAS * zoom, CANVAS * zoom), BACKGROUND)
+    if mask:
+        big = Image.new('L', (CANVAS * zoom, CANVAS * zoom), 0)
+        ink = body = 255
+    else:
+        big = Image.new('RGB', (CANVAS * zoom, CANVAS * zoom), BACKGROUND)
+        ink, body = (0, 0, 0), (255, 255, 255)
     draw = ImageDraw.Draw(big)
 
     def at(p):
@@ -338,14 +342,14 @@ def preview(commands, zoom=8):
 
     def stroke(points, width, closed):
         pts = [at(p) for p in points] + ([at(points[0])] if closed else [])
-        draw.line(pts, fill=(0, 0, 0), width=width * zoom, joint='curve')
+        draw.line(pts, fill=ink, width=width * zoom, joint='curve')
         radius = width * zoom / 2
         for x, y in pts:
-            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=(0, 0, 0))
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=ink)
 
     for command in commands:
         if command['closed']:
-            draw.polygon([at(p) for p in command['points']], fill=(255, 255, 255))
+            draw.polygon([at(p) for p in command['points']], fill=body)
             stroke(command['points'], OUTLINE, True)
         else:
             stroke(command['points'], GRID, False)
@@ -358,16 +362,18 @@ def pebble_colour(rgb):
 
 
 def frame_bitmap(commands):
-    """The shipped frame: the preview in Pebble's colours, the dock's white transparent."""
+    """The shipped frame: the preview in Pebble's colours, opaque wherever the cube covers
+    any of a pixel (its white body too, so the page under it never shows through),
+    transparent around it."""
     from PIL import Image
     image = preview(commands)
+    cover = preview(commands, mask=True).load()
     bitmap = Image.new('RGBA', image.size, (0, 0, 0, 0))
     source, target = image.load(), bitmap.load()
     for y in range(image.height):
         for x in range(image.width):
-            colour = pebble_colour(source[x, y])
-            if colour != BACKGROUND:
-                target[x, y] = colour + (255,)
+            if cover[x, y]:
+                target[x, y] = pebble_colour(source[x, y]) + (255,)
     return bitmap
 
 

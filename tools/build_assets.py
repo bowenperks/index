@@ -162,6 +162,35 @@ def scale_pdc(path, factor, stroke):
     return image(round(width * factor), round(height * factor), commands)
 
 
+# The dock's microphone, in its blue bubble: Pebble's microphone (above) redrawn at the
+# dock's size on the pixel grid rather than scaled, which blurred its slanted grille and
+# 2px outline into mush. The same parts, 27 x 28: the capsule with a 2px outline on pixel
+# edges, white inside, its grille a centre line and two cross lines (3px cells), the
+# three rays, the cradle, the stem and a 2px base, every 1px line through pixel centres.
+# Coordinates are Pebble's (an integer is a pixel's centre).
+DOCK_MIC_SIZE = (27, 28)
+DOCK_MIC = [
+    ([(10.5, 5.5), (15.5, 5.5), (17.5, 7.5), (17.5, 16.5), (15.5, 18.5), (10.5, 18.5),
+      (8.5, 16.5), (8.5, 7.5)], 2, WHITE, False),                      # capsule
+    ([(13, 7), (13, 17)], 1, 0, True),                                  # grille
+    ([(10, 10), (16, 10)], 1, 0, True),
+    ([(10, 14), (16, 14)], 1, 0, True),
+    ([(13, 1), (13, 3)], 1, 0, True),                                   # rays
+    ([(7, 4), (5, 2)], 1, 0, True),
+    ([(19, 4), (21, 2)], 1, 0, True),
+    ([(5, 17), (10, 22), (16, 22), (21, 17)], 1, 0, True),              # cradle
+    ([(13, 23), (13, 25)], 1, 0, True),                                 # stem
+    ([(10, 26.5), (16, 26.5)], 2, 0, True),                             # base
+]
+
+
+def dock_microphone():
+    commands = [struct.pack('<5B2H', 3, 0, BLACK, width, fill, int(open_path), len(points)) +
+                b''.join(struct.pack('<2h', round(x * 8), round(y * 8)) for x, y in points)
+                for points, width, fill, open_path in DOCK_MIC]
+    return image(*DOCK_MIC_SIZE, commands)
+
+
 MEDIUM_SIZE = 36   # the cards' icons, in their bottom-left cutouts
 
 
@@ -308,8 +337,7 @@ def build():
     (PDC / 'index-weather-disc.pdc').write_bytes(weather_disc())
     (PDC / 'index-pen.pdc').write_bytes(pen())
     (PDC / 'index-mic.pdc').write_bytes(microphone())
-    # The dock's microphone, in its blue bubble: black lines, the capsule white inside.
-    (PDC / 'index-mic-small.pdc').write_bytes(microphone(24, lambda width: 2 if width >= 4 else 1))
+    (PDC / 'index-mic-small.pdc').write_bytes(dock_microphone())
     # The weather's dock icon, from the 80px vector partly-cloudy icon (strokes halved).
     (PDC / 'index-widget-weather-small.pdc').write_bytes(
         scale_pdc(PDC / 'index-weather-partly-cloudy-large.pdc', DOCK_ICON / LARGE_SIZE,
