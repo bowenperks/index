@@ -1,12 +1,12 @@
 // Index's one scrolling page, laid out like a messaging app: the history of what Index has
-// done, newest at the bottom, under a slim time bar, and over its end a blue dock across
-// the bottom of the screen holding the voice input, Pebble's microphone. The page opens on
-// the newest results.
+// done, newest at the bottom, under a slim time bar, and below it the dock: a dotted
+// divider across the screen with the voice input, Pebble's microphone in a blue bubble,
+// sitting on it. The page opens on the newest results.
 //
-// Asking pushes things in from the bottom: the recording's waveform in the user's bubble,
-// then the whole transcribed message at once. The microphone then shrinks to a dot as it
-// slides to the dock's left, where the dot grows into the thinking cube. When the result
-// comes in it takes the words' place, so the history keeps results rather than questions.
+// Asking turns the bar under the divider blue, the recording's waveform running across it
+// in white; then the whole transcribed message is pushed in from the bottom, and the
+// thinking cube grows where the microphone was. When the result comes in it takes the
+// words' place, so the history keeps results rather than questions.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
@@ -56,23 +56,24 @@ const STATUS_DIGITS_TOP = 5;
 // The position bar's column at the left edge, which nothing else on the page reaches:
 // cards start at CARD_MARGIN, a reply's tail 5px inside MARGIN.
 const BAR_COLUMN = 6;
-// The dock: a bar across the bottom of the screen, over the page's end, in Index blue and
-// the height of a PebbleOS notification's coloured banner as the firmware draws it,
-// measured on the emery emulator: 49px (the 20px status bar in the banner's colour, then
-// the 29px LAYOUT_BANNER_HEIGHT_RECT). The microphone sits at its centre, its art the size
-// of the banner's icon (25px, measured; ATTRIBUTE_ICON_TINY_SIZE_PX), as is a result's icon
-// as it unfolds there. The thinking cube is larger, 41px at rest (tools/build_cube.py):
-// smaller, its faces were lost.
-const DOCK_HEIGHT = 49, DOCK_TOP = HEIGHT - DOCK_HEIGHT, DOCK_CENTRE = DOCK_TOP + (DOCK_HEIGHT >> 1);
-// While Index thinks, the cube sits at the dock's left, under the cards' icons (their
-// cutout's centre), so a widget's icon unfolds there and flies straight up into its card.
-// The cube at rest is centred in its frames, so in the dock, and its turns stay inside the
-// dock. Going to think, the microphone shrinks to a dot there; the cube grows out of a 3px
-// dot and folds back into one.
-const CUBE_X = CARD_MARGIN + (WIDGET_ICON >> 1), CUBE_Y = DOCK_CENTRE;
-const MIC_DOT_SCALE = 0.12, DOT_Q8 = 256, SLIDE_MS = 220;
-// The recording's bubble: the waveform in a pill.
-const VOICE_PADDING = 12, VOICE_HEIGHT = 36;
+// The dock: the screen's bottom 49px, below the page. Across it, the Weather app's
+// mainscreen divider (45 Dark Gray dots, 2px square, 4px apart, centred: weather_app_
+// layout.c), 20px down; on it, centred, the microphone in a blue bubble (Index blue, 37px
+// across), the microphone white, the banner icon's 25px. The divider stops short of the
+// bubble, DIVIDER_GAP clear of it. Below the divider is the bar, the 29px of a PebbleOS
+// notification's banner under its status bar (LAYOUT_BANNER_HEIGHT_RECT): white, until
+// the user speaks, when it turns blue with the recording's waveform across it in white.
+const DOCK_HEIGHT = 49, DOCK_TOP = HEIGHT - DOCK_HEIGHT;
+const BAR_HEIGHT = 29, BAR_TOP = HEIGHT - BAR_HEIGHT, BAR_CENTRE = BAR_TOP + (BAR_HEIGHT >> 1);
+const DIVIDER_DOTS = 45, DIVIDER_PITCH = 4, DIVIDER_DOT = 2, DIVIDER_GAP = 4;
+const DIVIDER_LEFT = (WIDTH - ((DIVIDER_DOTS - 1) * DIVIDER_PITCH + DIVIDER_DOT)) >> 1;
+const DOCK_X = WIDTH >> 1, BUBBLE_Y = BAR_TOP, BUBBLE_RADIUS = 18;
+// While Index thinks, the cube takes the bubble's place, a little lower so its turns
+// (45px at their tallest, centred in its frames) stay in the dock: it grows out of a 3px
+// dot and folds back into one, which a widget's icon unfolds out of before it flies up into
+// its card. The divider then stops CUBE_CLEAR from the centre. 41px at rest (tools/
+// build_cube.py): smaller, the cube lost its faces.
+const CUBE_Y = BUBBLE_Y + 2, CUBE_CLEAR = 22, DOT_Q8 = 256;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
@@ -184,10 +185,6 @@ export default class Chat {
       x = 0;
       w = WIDTH;
       h = DAY_HEIGHT;
-    } else if (item.type === "voice") {
-      w = this.waveform.width + 2 * VOICE_PADDING;
-      x = WIDTH - MARGIN - w;
-      h = VOICE_HEIGHT;
     } else if (item.type === "query") {
       // The user's pill hugs its widest line: eight pixels of padding each side plus two of
       // slack so the drawn text never re-wraps.
@@ -273,20 +270,17 @@ export default class Chat {
     return this.phase !== "idle";
   }
 
-  // The playtest: records for `ms`, the waveform running in the user's bubble, then
+  // The playtest: records for `ms`, the waveform running in the dock's blue bar, then
   // transcribes `question`. `answer` ({widget, text}) is Index's result, known up front.
   listen(question, ms, answer) {
     if (this.busy || !this.visible) return false;
     this.beginTurn(question, answer);
     this.phase = "listening";
     this.waveform = new Waveform();
-    const voice = this.size({type: "voice"});
-    this.push(voice);
+    this.invalidateDock();
     this.waveTimer = setInterval(() => {
       this.waveform.step();
-      // Once the bubble has scrolled in, only it repaints.
-      if (this.scrollAnimation?.scheduled) this.invalidate();
-      else this.invalidateArea(voice.y, voice.y + voice.h);
+      this.invalidateDock();
     }, WAVE_STEP);
     // Wrapping text is many native width measurements, so the message and the result are
     // measured now, while only the waveform moves, not at the transitions that need them.
@@ -322,33 +316,17 @@ export default class Chat {
     this.prepared ??= this.makeResult(this.answer.widget, this.answer.text);
   }
 
-  // The recording becomes the user's whole message at once, pushed in from the bottom;
-  // then Index thinks.
+  // The recording becomes the user's whole message at once, pushed in from the bottom, the
+  // bar white again; then Index thinks.
   transcribe() {
     if (this.waveTimer !== undefined) clearInterval(this.waveTimer);
     this.waveTimer = undefined;
-    if (this.items[this.items.length - 1].type === "voice") this.items.pop();
     this.waveform = undefined;
     this.phase = "transcribing";
+    this.invalidateDock();
     this.prepareQuery();
     this.push(this.query);
-    this.timer = setTimeout(() => this.slide(), THINK_AFTER);
-  }
-
-  // Index starts thinking: the microphone shrinks to a dot as it slides to the dock's left,
-  // where the dot becomes the thinking cube.
-  slide() {
-    this.phase = "sliding";
-    const from = WIDTH >> 1;
-    this.micX = from;
-    this.micY = DOCK_CENTRE;
-    this.micScale = 1;
-    new Animation(SLIDE_MS, easeInOut, progress => {
-      this.micX = from + Math.trunc((CUBE_X - from) * progress / NORMAL_MAX);
-      this.micY = DOCK_CENTRE + Math.trunc((CUBE_Y - DOCK_CENTRE) * progress / NORMAL_MAX);
-      this.micScale = 1 - (1 - MIC_DOT_SCALE) * progress / NORMAL_MAX;
-      this.invalidateDock();
-    }, () => this.startThinking()).schedule();
+    this.timer = setTimeout(() => this.startThinking(), THINK_AFTER);
   }
 
   // The cube grows out of the dot and turns until the answer is ready (at least one turn),
@@ -384,7 +362,7 @@ export default class Chat {
     const item = this.prepared;
     this.pending = [index, item];
     const flying = item.widget &&
-      this.transition.start(WIDGETS[item.widget][1], CUBE_X, DOCK_CENTRE, undefined, false, CUBE_X, CUBE_Y);
+      this.transition.start(WIDGETS[item.widget][1], DOCK_X, CUBE_Y, undefined, false, DOCK_X, CUBE_Y);
     // The question fades out just before the result arrives (only its band repainting); a
     // flying icon lands the result itself, as its flight begins.
     this.timer = setTimeout(() => {
@@ -431,12 +409,12 @@ export default class Chat {
     if (!this.transition.active) this.finishTurn();
   }
 
-  // The turn is over: the microphone unfolds out of a dot at the dock's centre, as the
-  // dictation screen's does.
+  // The turn is over: the bubble is back, the microphone unfolding in it out of a dot, as
+  // the dictation screen's does.
   finishTurn() {
     this.landing = undefined;
     this.phase = "regrowing";
-    if (!this.micUnfold.start(assets.MIC_SMALL, WIDTH >> 1, DOCK_CENTRE, undefined, true)) this.idle();
+    if (!this.micUnfold.start(assets.MIC_WHITE, DOCK_X, BUBBLE_Y, undefined, true)) this.idle();
   }
 
   // Between turns, the turn's art is let go and collected at once: its native memory (the
@@ -898,9 +876,6 @@ export default class Chat {
     if (item.type === "day") {
       drawText(item.text, font("Gothic-Bold", 18), DARK_GRAY, item.textX,
                y + ((DAY_HEIGHT - DAY_CAP) >> 1) - DAY_CAP_TOP);
-    } else if (item.type === "voice") {
-      render.drawRoundRect(x, y, w, h, VIVID_CERULEAN, PILL_RADIUS, GCORNERS_ALL);
-      this.waveform?.draw(x + VOICE_PADDING, y + (h >> 1), WHITE);
     } else if (item.type === "query") {
       // The user's words: a solid pill with no tail, so it never reads as Index. As the
       // result comes in it fades away.
@@ -1005,19 +980,33 @@ export default class Chat {
     }
   }
 
-  // The dock: Pebble's microphone at its centre, sliding left as it shrinks to a dot; the
-  // cube, while Index thinks, at the left; then (while a result's icon unfolds and flies
-  // off) nothing, until the microphone unfolds again.
+  // The dock: while the user speaks, the bar blue with the waveform across it; otherwise the
+  // divider, parted around what sits on it: the microphone in its bubble, at rest and as it
+  // unfolds again after a turn; the cube while Index thinks; then (while a result's icon
+  // unfolds there and flies off) nothing.
   drawDock() {
-    render.fillRectangle(VIVID_CERULEAN, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
+    render.fillRectangle(WHITE, 0, DOCK_TOP, WIDTH, DOCK_HEIGHT);
+    const phase = this.phase;
+    if (phase === "listening") {
+      render.fillRectangle(VIVID_CERULEAN, 0, BAR_TOP, WIDTH, BAR_HEIGHT);
+      const waveform = this.waveform;
+      waveform?.draw((WIDTH - waveform.width) >> 1, BAR_CENTRE, WHITE);
+      return;
+    }
+    const bubble = phase === "idle" || phase === "regrowing";
+    const clear = (bubble ? BUBBLE_RADIUS : CUBE_CLEAR) + DIVIDER_GAP;
+    for (let index = 0; index < DIVIDER_DOTS; index++) {
+      const x = DIVIDER_LEFT + index * DIVIDER_PITCH;
+      if (x + DIVIDER_DOT <= DOCK_X - clear || x > DOCK_X + clear) {
+        render.fillRectangle(DARK_GRAY, x, BAR_TOP, DIVIDER_DOT, DIVIDER_DOT);
+      }
+    }
     if (this.thinking.active) {
-      this.thinking.draw(CUBE_X, CUBE_Y);
-    } else if (this.phase === "sliding") {
-      drawMic(this.micX, this.micY, this.micScale);
-    } else if (this.phase === "regrowing") {
-      this.micUnfold.draw();
-    } else if (this.phase !== "answering") {
-      drawMic(WIDTH >> 1, DOCK_CENTRE);
+      this.thinking.draw(DOCK_X, CUBE_Y);
+    } else if (bubble) {
+      render.drawCircle(VIVID_CERULEAN, DOCK_X, BUBBLE_Y, BUBBLE_RADIUS);
+      if (phase === "regrowing") this.micUnfold.draw();
+      else drawMic(DOCK_X, BUBBLE_Y);
     }
   }
 

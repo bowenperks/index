@@ -20,8 +20,9 @@ nothing is scaled on the watch.
 The frames ship as bitmaps of exactly that drawing: each is drawn at 8x with exact
 strokes and averaged down, every pixel then moved to the nearest of Pebble's 64 colours.
 As vector commands the firmware strokes these 2px lines nearer 4px, filling the
-stickers in; and the cube is only ever drawn on the dock's blue, so its edges are
-blended with that blue and everything else left transparent.
+stickers in; and the cube is only ever drawn on the dock's white, so its edges are
+blended with that white and the white left transparent (the divider is parted around
+the cube, so nothing shows through it).
 
     python3 tools/build_cube.py                     (needs shapely and Pillow)
     python3 tools/build_cube.py --preview DIR       (also a contact sheet, 4x)
@@ -44,7 +45,7 @@ from shapely.ops import linemerge
 ROOT = Path(__file__).resolve().parents[1]
 GEOMETRY = ROOT / 'tools/cube-geometry.json'
 FRAMES = ROOT / 'resources/images/thinking'
-DOCK_BLUE = (0, 170, 255)      # VIVID_CERULEAN, the dock the cube is drawn on
+BACKGROUND = (255, 255, 255)   # the dock, white, the cube drawn on it
 
 # Output pixels per Blender unit at the three-quarter view: the turning cube (58.3
 # units at its tallest) fits the 49px dock with its outline and 2px to spare, and
@@ -58,7 +59,7 @@ CANVAS = 50                    # square, the source's centre (40, 40) at its mid
 # display's four shades.)
 OUTLINE = 2
 GRID = 2
-WHITE, BLACK = 0xFF, 0xC0      # GColor8: the light theme (the dock is blue)
+WHITE, BLACK = 0xFF, 0xC0      # GColor8: the light theme
 AREA_EPSILON = 0.02            # px^2: faces seen edge on, and slivers, are dropped
 STRAIGHT = math.radians(1.5)   # segments this close in direction form one line
 
@@ -327,9 +328,9 @@ def write_sequence(frames, path):
 
 def preview(commands, zoom=8):
     """The frame drawn at `zoom` times with exact strokes and round joins, on the dock's
-    blue, and averaged down."""
+    white, and averaged down."""
     from PIL import Image, ImageDraw
-    big = Image.new('RGB', (CANVAS * zoom, CANVAS * zoom), DOCK_BLUE)
+    big = Image.new('RGB', (CANVAS * zoom, CANVAS * zoom), BACKGROUND)
     draw = ImageDraw.Draw(big)
 
     def at(p):
@@ -357,7 +358,7 @@ def pebble_colour(rgb):
 
 
 def frame_bitmap(commands):
-    """The shipped frame: the preview in Pebble's colours, the dock's blue transparent."""
+    """The shipped frame: the preview in Pebble's colours, the dock's white transparent."""
     from PIL import Image
     image = preview(commands)
     bitmap = Image.new('RGBA', image.size, (0, 0, 0, 0))
@@ -365,7 +366,7 @@ def frame_bitmap(commands):
     for y in range(image.height):
         for x in range(image.width):
             colour = pebble_colour(source[x, y])
-            if colour != DOCK_BLUE:
+            if colour != BACKGROUND:
                 target[x, y] = colour + (255,)
     return bitmap
 
@@ -399,7 +400,7 @@ def main():
         arguments.preview.mkdir(parents=True, exist_ok=True)
         shown = []
         for bitmap in bitmaps:
-            image = Image.new('RGB', bitmap.size, DOCK_BLUE)
+            image = Image.new('RGB', bitmap.size, BACKGROUND)
             image.paste(bitmap, (0, 0), bitmap)
             shown.append(image)
         picks = [0, 3, 6, 9, 12, 17, 21, 25, 34, 38, 46, 55, 63, 72]

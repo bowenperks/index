@@ -8,15 +8,15 @@ The sibling `../index` folder is the older native C implementation.
 ## What it looks like
 
 Index opens like a messaging app, on its history of results: newest at the bottom,
-a slim time bar on top, day labels ("Yesterday", "Today") between days, and a blue dock
-across the bottom of the screen holding the voice input: Pebble's own microphone, the one
-the system dictation screen shows, centred. The dock is the height of a PebbleOS
-notification's coloured banner as the firmware draws it (49px, measured on the emery
-emulator: the 20px status bar in the banner's colour, then the 29px
-`LAYOUT_BANNER_HEIGHT_RECT`). The microphone and a result's icon are the banner icon's
-size (25px); the thinking cube rests 41px tall, the largest that turns inside the dock, as
-smaller it loses its faces. The
-time bar's clock sits where the firmware's status bar puts it (digits from row 5).
+a slim time bar on top, day labels ("Yesterday", "Today") between days, and below them
+the dock, the screen's bottom 49px: the Weather app's mainscreen divider (45 Dark Gray
+dots) across it, and on the divider, centred, the voice input in a blue bubble: Pebble's
+own microphone, the one the system dictation screen shows, in white. The divider stops
+short of the bubble. Below the divider is the bar, the 29px of a PebbleOS notification's
+banner under its status bar (`LAYOUT_BANNER_HEIGHT_RECT`): white until the user speaks.
+The microphone and a result's icon are the banner icon's size (25px); the thinking cube
+rests 41px tall, the largest that turns inside the dock, as smaller it loses its faces.
+The time bar's clock sits where the firmware's status bar puts it (digits from row 5).
 A touch drag scrolls the history above it freely; Up and Down snap between stops, a
 message in focus at the bottom of the screen with its icon just above the dock either
 way. A message too tall to show whole there also stops at its top, just under the time
@@ -26,20 +26,19 @@ left-aligned, every line, and optically centred: as many empty rows above its fi
 line's capitals as below its last line's baseline, which in a card is the top of its
 corner icon's ink.
 
-Asking pushes things in from the bottom. The recording's waveform runs in the user's
-blue bubble, then the whole transcribed message comes in at once. While Index thinks,
-the microphone shrinks to a dot as it slides to the dock's left, under the cards' icons,
-and the dot grows into the thinking cube. When the result comes in, it takes the words'
-place: the history keeps results, not questions. A widget's icon unfolds out of the
-cube's dot (after the notification peek), then flies up into its card as the card rises
-in. The microphone then unfolds out of a dot at the dock's centre, as the dictation
-screen's does.
+Asking turns the bar blue, the recording's waveform running across it in white. Then
+the whole transcribed message is pushed in from the bottom at once, and while Index
+thinks, the thinking cube grows out of a dot where the microphone was, the divider parted
+around it. When the result comes in, it takes the words' place: the history keeps
+results, not questions. A widget's icon unfolds out of the cube's dot (after the
+notification peek), then flies up into its card as the card rises in. The microphone
+then unfolds in its bubble out of a dot, as the dictation screen's does.
 
 The microphone's art is PebbleOS's `Pebble_80x80_Microphone.svg` (Apache-2.0, Google
 LLC), copied to `resources/svg/` and converted to a 24px PDC (25px of ink) by
 `tools/build_assets.py`. The thinking cube is drawn at the dock's size the way PebbleOS
 draws its own icons (white body, uniform 2px black lines, round joins, every point on
-a pixel centre) by `tools/build_cube.py` from the Blender cube's geometry
+a pixel centre, on the dock's white) by `tools/build_cube.py` from the Blender cube's geometry
 (`tools/cube-geometry.json`); it needs shapely, so it is run by hand when the cube changes.
 Its 81 frames ship as bitmaps of that drawing in Pebble's 64 colours
 (`resources/images/thinking/`), drawn natively one at a time: as vector commands the

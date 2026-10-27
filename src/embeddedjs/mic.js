@@ -1,34 +1,25 @@
 // The voice input in Index's dock: Pebble's own microphone (the dictation screen's, scaled
-// to the notification banner's 25px icon: 25px of ink on a 24px canvas); and the
-// recording's waveform, which runs inside the user's bubble.
+// to the notification banner's 25px icon: 25px of ink on a 24px canvas), in white for its
+// blue bubble; and the recording's waveform, which runs in the dock's blue bar.
 import Poco from "commodetto/Poco";
-import Debug from "debug";
-import {MIC_SMALL} from "assets";
+import {MIC_WHITE} from "assets";
 import {render} from "theme";
 
 export const MIC_SIZE = 24;       // the microphone's canvas, square
 
-let glyph, scaledDraws = 0;
+let glyph;
 
-// The microphone centred on (cx, cy); `scale` shrinks it (as it turns into the thinking
-// cube's dot).
-export function drawMic(cx, cy, scale = 1) {
-  if (scale === 1) {
-    glyph ??= new Poco.PebbleDrawCommandImage(MIC_SMALL);
-    render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
-    return;
-  }
-  // A scaled copy is native memory XS cannot see: the last few are collected every second
-  // draw (a 2ms pause on the watch).
-  if (++scaledDraws % 2 === 0) Debug.gc();
-  const small = new Poco.PebbleDrawCommandImage(MIC_SMALL).clone().scale(scale);
-  const half = Math.trunc(MIC_SIZE * scale / 2);
-  render.drawDCI(small, cx - half, cy - half);
+// The microphone centred on (cx, cy).
+export function drawMic(cx, cy) {
+  glyph ??= new Poco.PebbleDrawCommandImage(MIC_WHITE);
+  render.drawDCI(glyph, cx - (MIC_SIZE >> 1), cy - (MIC_SIZE >> 1));
 }
 
 // A live recording's waveform: bars scroll in from the right, their heights following a
 // speech-like envelope of syllables and pauses.
-export const BARS = 15, BAR_PITCH = 6, BAR_WIDTH = 3, BAR_MIN = 3, BAR_MAX = 24;
+// Sized for the dock's 29px bar: 21 bars 6px apart (123px across, centred), up to 21px
+// tall, the quietest 3px (a dot).
+export const BARS = 21, BAR_PITCH = 6, BAR_WIDTH = 3, BAR_MIN = 3, BAR_MAX = 21;
 
 export class Waveform {
   constructor() {

@@ -244,14 +244,15 @@ MIC_SIZE = 80
 DOCK_ICON = 25
 
 
-def microphone(size=MIC_SIZE, stroke=None):
+def microphone(size=MIC_SIZE, stroke=None, colour=BLACK, fill_colour=WHITE):
     # The voice input's microphone: Pebble's own, the one the system dictation screen shows
     # (VOICE_MICROPHONE_LARGE). resources/svg/Pebble_80x80_Microphone.svg is a copy of
     # PebbleOS's resources/normal/snowy/images/Pebble_80x80_Microphone.svg (Apache-2.0,
     # Google LLC). Its shapes are all straight (a polygon, lines and a polyline), converted
     # here as PebbleOS's svg2commands would, at its own 80px with its 4px and 3px strokes,
     # or scaled to `size` with strokes `stroke(width)` (the dock's: 25px of ink on a 24px
-    # canvas, the outline and base 2px as a 25px icon's, the grille, rays and stand 1px).
+    # canvas, the outline and base 2px as a 25px icon's, the grille, rays and stand 1px),
+    # in `colour`, its capsule filled with `fill_colour` (0: none).
     scale = size / 80
     svg = ElementTree.parse(ROOT / 'resources/svg/Pebble_80x80_Microphone.svg').getroot()
     commands = []
@@ -267,10 +268,10 @@ def microphone(size=MIC_SIZE, stroke=None):
                 points.pop()
         else:
             continue
-        fill = WHITE if element.get('fill', 'none').upper() == '#FFFFFF' else 0
+        fill = fill_colour if element.get('fill', 'none').upper() == '#FFFFFF' else 0
         width = float(element.get('stroke-width', '1'))
         width = stroke(width) if stroke else max(1, round(width * scale))
-        commands.append(struct.pack('<5B2H', 3, 0, BLACK, width, fill, int(tag != 'polygon'), len(points)) +
+        commands.append(struct.pack('<5B2H', 3, 0, colour, width, fill, int(tag != 'polygon'), len(points)) +
                         b''.join(struct.pack('<2h', round(x * scale * 8), round(y * scale * 8))
                                  for x, y in points))
     return image(size, size, commands)
@@ -294,7 +295,7 @@ for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
     STATIC.append((f'{widget.upper()}_MEDIUM', f'pdc/index-widget-{widget}-medium.pdc', 'raw'))
 STATIC += [
     ('MIC', 'pdc/index-mic.pdc', 'raw'),
-    ('MIC_SMALL', 'pdc/index-mic-small.pdc', 'raw'),
+    ('MIC_WHITE', 'pdc/index-mic-white.pdc', 'raw'),
     ('WEATHER_SMALL', 'pdc/index-widget-weather-small.pdc', 'raw'),
     ('STREET_MAP', 'pdc/index-street-map.pdc', 'raw'),
     ('TYPING_BUBBLE', 'pdc/index-typing-bubble.pdc', 'raw'),
@@ -307,7 +308,9 @@ def build():
     (PDC / 'index-weather-disc.pdc').write_bytes(weather_disc())
     (PDC / 'index-pen.pdc').write_bytes(pen())
     (PDC / 'index-mic.pdc').write_bytes(microphone())
-    (PDC / 'index-mic-small.pdc').write_bytes(microphone(24, lambda width: 2 if width >= 4 else 1))
+    # The dock's microphone: white lines, no fill, in its blue bubble.
+    (PDC / 'index-mic-white.pdc').write_bytes(
+        microphone(24, lambda width: 2 if width >= 4 else 1, colour=WHITE, fill_colour=0))
     # The weather's dock icon, from the 80px vector partly-cloudy icon (strokes halved).
     (PDC / 'index-widget-weather-small.pdc').write_bytes(
         scale_pdc(PDC / 'index-weather-partly-cloudy-large.pdc', DOCK_ICON / LARGE_SIZE,
