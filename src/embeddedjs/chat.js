@@ -81,12 +81,15 @@ const DIVIDER_LEFT = (WIDTH - ((DIVIDER_DOTS - 1) * DIVIDER_PITCH + DIVIDER_DOT)
 const DOCK_X = WIDTH >> 1, BUBBLE_Y = BAR_TOP + 1, BUBBLE_RADIUS = 18;
 // While Index thinks, the cube takes the bubble's place, centred on the divider too: the
 // bubble shrinks to a 3px dot, the cube grows out of it and folds back into one, which a
-// widget's icon unfolds out of before it flies up into its card. The divider then stops
-// CUBE_CLEAR (and the gap) from the centre. 41px at rest, 45px as it turns (tools/
-// build_cube.py): smaller, the cube lost its faces.
-const CUBE_Y = BUBBLE_Y, CUBE_CLEAR = 22, CUBE_FRAME = 25, DOT_Q8 = 256;
-const FLOAT_TOP = CUBE_Y - CUBE_FRAME, FLOAT_LEFT = DOCK_X - CUBE_FRAME - 1;
-const FLOAT_RIGHT = DOCK_X + CUBE_FRAME + 1;
+// widget's icon unfolds out of, as big as the cube (tools/build_assets.py dock_icon), before
+// it flies up into its card. The divider then stops CUBE_CLEAR (ICON_CLEAR for the icon,
+// past its unfold's overshoot) and the gap from the centre. 41px at rest, 45px as it turns
+// (tools/build_cube.py): smaller, the cube lost its faces. FLOAT_REACH is the furthest
+// either reaches from the centre: the largest icon's 46px canvas, 4px past it unfolding.
+const CUBE_Y = BUBBLE_Y, CUBE_CLEAR = 22, ICON_CLEAR = 24, DOT_Q8 = 256;
+const FLOAT_REACH = 27;
+const FLOAT_TOP = CUBE_Y - FLOAT_REACH, FLOAT_LEFT = DOCK_X - FLOAT_REACH - 1;
+const FLOAT_RIGHT = DOCK_X + FLOAT_REACH + 1;
 const SHRINK_MS = 220;
 // Asking, the bubble opens into the blue dock (EXPAND_MS, a rounded rectangle from the
 // bubble's square to the dock, its corners from round to square), then the waveform
@@ -109,17 +112,17 @@ const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
 const STRETCH_POINT = fraction(5, 6);
 const PREPARE_MS = 250;   // into a recording (and again later), text is measured
 
-// Each widget: its icon for the cutout and the 25px one that unfolds in the dock, and its
-// body if not text.
+// Each widget: its icon for the cutout and the cube-sized one that unfolds in the dock,
+// and its body if not text.
 const WIDGETS = {
-  weather: [assets.WEATHER_MEDIUM, assets.WEATHER_SMALL, "weather"],
-  beeper: [assets.BEEPER_MEDIUM, assets.BEEPER_ICON],
-  reminder: [assets.REMINDER_MEDIUM, assets.REMINDER_ICON],
-  home: [assets.HOME_MEDIUM, assets.HOME_ICON],
-  today: [assets.TODAY_MEDIUM, assets.TODAY_ICON, "today"],
-  web: [assets.WEB_MEDIUM, assets.WEB_ICON, "", "Source: GDPR, Article 17"],
-  map: [assets.PIN_MEDIUM, assets.PIN_ICON, "map"],
-  translate: [assets.TRANSLATE_MEDIUM, assets.TRANSLATE_ICON, "translate"],
+  weather: [assets.WEATHER_MEDIUM, assets.WEATHER_DOCK, "weather"],
+  beeper: [assets.BEEPER_MEDIUM, assets.BEEPER_DOCK],
+  reminder: [assets.REMINDER_MEDIUM, assets.REMINDER_DOCK],
+  home: [assets.HOME_MEDIUM, assets.HOME_DOCK],
+  today: [assets.TODAY_MEDIUM, assets.TODAY_DOCK, "today"],
+  web: [assets.WEB_MEDIUM, assets.WEB_DOCK, "", "Source: GDPR, Article 17"],
+  map: [assets.PIN_MEDIUM, assets.PIN_DOCK, "map"],
+  translate: [assets.TRANSLATE_MEDIUM, assets.TRANSLATE_DOCK, "translate"],
 };
 
 // A fading bubble steps through the 64-colour palette from Index blue to the page.
@@ -1084,7 +1087,8 @@ export default class Chat {
     }
     const bubble = phase === "idle" || phase === "transcribing" || phase === "shrinking" ||
                    phase === "regrowing";
-    this.drawDivider((bubble ? BUBBLE_RADIUS : CUBE_CLEAR) + DIVIDER_GAP);
+    this.drawDivider((bubble ? BUBBLE_RADIUS : phase === "answering" ? ICON_CLEAR : CUBE_CLEAR) +
+                     DIVIDER_GAP);
     if (this.thinking.active) {
       this.thinking.draw(DOCK_X, CUBE_Y);
     } else if (phase === "shrinking") {

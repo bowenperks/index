@@ -223,6 +223,46 @@
         },
         {
           "type": "raw",
+          "name": "INDEX_WEATHER_DOCK",
+          "file": "pdc/index-widget-weather-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_BEEPER_DOCK",
+          "file": "pdc/index-widget-beeper-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_REMINDER_DOCK",
+          "file": "pdc/index-widget-reminder-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_PIN_DOCK",
+          "file": "pdc/index-widget-pin-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_HOME_DOCK",
+          "file": "pdc/index-widget-home-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEB_DOCK",
+          "file": "pdc/index-widget-web-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TODAY_DOCK",
+          "file": "pdc/index-widget-today-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_TRANSLATE_DOCK",
+          "file": "pdc/index-widget-translate-dock.pdc"
+        },
+        {
+          "type": "raw",
           "name": "INDEX_MIC",
           "file": "pdc/index-mic.pdc"
         },
@@ -230,11 +270,6 @@
           "type": "raw",
           "name": "INDEX_MIC_SMALL",
           "file": "pdc/index-mic-small.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_WEATHER_SMALL",
-          "file": "pdc/index-widget-weather-small.pdc"
         },
         {
           "type": "raw",

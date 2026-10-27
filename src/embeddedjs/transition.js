@@ -172,8 +172,8 @@ export default class IconTransition {
     const list = this.image.clone();
     list.scale(Math.max(0, right - left) / this.size[0], Math.max(0, bottom - top) / this.size[1]);
     // Strokes move between two widths, in eighths with rounding: the dot's thick stroke
-    // eases back to the art's own over the unfold's first quarter; flying, they scale with
-    // the icon to its destination's size (the dock's 2px become the card icon's 3px).
+    // eases back to the art's own over the unfold's first quarter; flying, they keep it
+    // (the dock's icons have the cards' icons' strokes).
     let index = 0, unfolding = this.elapsed < UNFOLD_MS + HOLD_MS, progress;
     if (unfolding) {
       const unfold = this.elapsed >= UNFOLD_MS ? NORMAL_MAX : Math.trunc(this.elapsed * NORMAL_MAX / UNFOLD_MS);
@@ -182,13 +182,14 @@ export default class IconTransition {
       const fly = this.elapsed - UNFOLD_MS - HOLD_MS;
       progress = easeInOut(fly >= FLY_MS ? NORMAL_MAX : Math.trunc(fly * NORMAL_MAX / FLY_MS));
     }
-    const landing = this.to.h / this.size[1];
     list.process(command => {
       const native = this.strokes[index++];
       if (!native) return;
-      const from = unfolding ? this.dotStroke : native;
-      const to = unfolding ? native : Math.max(1, Math.round(native * landing));
-      const eighths = from * 8 + Math.trunc((to - from) * 8 * progress / NORMAL_MAX);
+      if (!unfolding) {
+        command.strokeWidth = native;
+        return;
+      }
+      const eighths = this.dotStroke * 8 + Math.trunc((native - this.dotStroke) * 8 * progress / NORMAL_MAX);
       command.strokeWidth = (eighths + 4) >> 3;
     });
     render.drawDCI(list, left, top);

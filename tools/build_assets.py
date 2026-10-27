@@ -268,9 +268,36 @@ def typing_bubble():
 
 
 MIC_SIZE = 80
-# The dock's icons (the microphone, a result's icon as it unfolds) are the size of the icon
-# in PebbleOS's notification banner: ATTRIBUTE_ICON_TINY_SIZE_PX.
-DOCK_ICON = 25
+# A result's icon unfolds where the thinking cube was, as big as the cube: the cube's ink
+# at rest is 40 x 44px with its anti-aliased edge (resources/images/thinking/cube-12.png),
+# 42px drawn; each icon is scaled so its larger ink dimension is CUBE_INK, its strokes
+# 3px (the 25px icons' 2px, as the cards' 36px icons; the weather's 4px and 3px become 3px
+# and 2px).
+CUBE_INK = 42
+
+
+def ink_size(data):
+    """A PDC image's drawn width and height: its points (Pebble coordinates, pixel
+    centres) and circles, each widened by half its stroke, plus the pixel itself."""
+    _, _, width, height, count = struct.unpack_from('<BBhhH', data, 8)
+    at, xs, ys = 16, [], []
+    for _ in range(count):
+        kind, hidden, stroke, stroke_width, fill, extra, points = struct.unpack_from('<5B2H', data, at)
+        coords = [struct.unpack_from('<2h', data, at + 9 + 4 * index) for index in range(points)]
+        at += 9 + 4 * points
+        half = (stroke_width if stroke else 0) / 2
+        scale = 8 if kind == 3 else 1
+        for x, y in coords:
+            x, y = x / scale, y / scale
+            reach = half + (extra if kind == 2 else 0)
+            xs += [x - reach, x + reach]
+            ys += [y - reach, y + reach]
+    return max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+
+
+def dock_icon(path, stroke):
+    data = path.read_bytes()
+    return scale_pdc(path, CUBE_INK / max(ink_size(data)), stroke)
 
 
 def microphone(size=MIC_SIZE, stroke=None, colour=BLACK, fill_colour=WHITE):
@@ -322,10 +349,11 @@ for widget in ('alarm', 'beeper', 'timer', 'reminder', 'note', 'tool', 'pin') + 
                (f'{widget.upper()}_LARGE', f'pdc/index-widget-{widget}-large.pdc', 'raw')]
 for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
     STATIC.append((f'{widget.upper()}_MEDIUM', f'pdc/index-widget-{widget}-medium.pdc', 'raw'))
+for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
+    STATIC.append((f'{widget.upper()}_DOCK', f'pdc/index-widget-{widget}-dock.pdc', 'raw'))
 STATIC += [
     ('MIC', 'pdc/index-mic.pdc', 'raw'),
     ('MIC_SMALL', 'pdc/index-mic-small.pdc', 'raw'),
-    ('WEATHER_SMALL', 'pdc/index-widget-weather-small.pdc', 'raw'),
     ('STREET_MAP', 'pdc/index-street-map.pdc', 'raw'),
     ('TYPING_BUBBLE', 'pdc/index-typing-bubble.pdc', 'raw'),
 ]
@@ -338,16 +366,17 @@ def build():
     (PDC / 'index-pen.pdc').write_bytes(pen())
     (PDC / 'index-mic.pdc').write_bytes(microphone())
     (PDC / 'index-mic-small.pdc').write_bytes(dock_microphone())
-    # The weather's dock icon, from the 80px vector partly-cloudy icon (strokes halved).
-    (PDC / 'index-widget-weather-small.pdc').write_bytes(
-        scale_pdc(PDC / 'index-weather-partly-cloudy-large.pdc', DOCK_ICON / LARGE_SIZE,
-                  lambda width: max(1, round(width / 2))))
     (PDC / 'index-street-map.pdc').write_bytes(street_map())
     (PDC / 'index-typing-bubble.pdc').write_bytes(typing_bubble())
     medium_icons()
     for name, shapes in ICONS.items():
         (PDC / f'index-widget-{name}.pdc').write_bytes(icon(shapes, 1, 2))
         (PDC / f'index-widget-{name}-large.pdc').write_bytes(icon(shapes, LARGE_SIZE / ICON_SIZE, 4))
+    for name in ('beeper', 'reminder', 'pin') + tuple(ICONS):
+        (PDC / f'index-widget-{name}-dock.pdc').write_bytes(
+            dock_icon(PDC / f'index-widget-{name}.pdc', lambda width: 3))
+    (PDC / 'index-widget-weather-dock.pdc').write_bytes(
+        dock_icon(PDC / 'index-weather-partly-cloudy-large.pdc', lambda width: round(width * 0.75)))
     frames = sorted((ROOT / 'resources/images/thinking').glob('cube-[0-9][0-9].png'))
     assert len(frames) == 81, 'run tools/build_cube.py for the thinking cube'
 
