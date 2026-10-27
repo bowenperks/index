@@ -20,7 +20,7 @@ import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
-import {drawMic, Waveform, BARS as WAVE_BARS} from "mic";
+import {drawMic, drawMicScaled, Waveform, BARS as WAVE_BARS} from "mic";
 import {history} from "prompts";
 // @strip profile
 import {stats} from "theme";
@@ -94,18 +94,22 @@ const CUBE_Y = BUBBLE_Y, DOT_Q8 = 256;
 const FLOAT_REACH = 27;
 const FLOAT_TOP = CUBE_Y - FLOAT_REACH, FLOAT_LEFT = DOCK_X - FLOAT_REACH - 1;
 const FLOAT_RIGHT = DOCK_X + FLOAT_REACH + 1;
-// Asking, the bubble opens sideways into a rectangular bubble as wide as the divider and
-// as tall as the microphone's bubble (EXPAND_MS, its corners from the circle's to the
-// user's bubbles' PILL_RADIUS), then the waveform squashes and stretches in (ENTER_MS):
-// first a sliver of its middle ENTER_SLIVER bars stretches up, ENTER_REACH rows taller
-// (ENTER_STRETCH of the time, eased out); then it spreads to its 31 bars, past them and
-// back (an ease-out-back), flattening as it goes. Its bars sit on the middle 31 of the
-// divider's dots, inside the bubble.
-const EXPAND_MS = 300, ENTER_MS = 500, ENTER_STRETCH = 0.3, ENTER_SLIVER = 2;
+// Asking, all at once: the microphone squashes flat into the middle of its bubble
+// (SQUASH_MS, eased in), as the bubble springs open sideways (EXPAND_MS, a little past
+// the divider's width and back) into a rectangular bubble as wide as the divider and as
+// tall as the microphone's, its corners from the circle's to the user's bubbles'
+// PILL_RADIUS. The opening reveals the waveform, its bars on the middle 31 of the
+// divider's dots: a ripple runs out from the middle, each bar coming in RIPPLE_STAGGER
+// after the one inside it (once the bubble's edge is REVEAL_MARGIN past it, where even
+// its tallest is inside the rounded end), rising up to RIPPLE_PEAK rows (less further
+// out) and settling to its level over RIPPLE_MS.
+const SQUASH_MS = 150, EXPAND_MS = 300;
+const RIPPLE_DELAY = 50, RIPPLE_STAGGER = 16, RIPPLE_MS = 240;
 const LISTEN_WIDTH = (DIVIDER_DOTS - 1) * DIVIDER_PITCH + DIVIDER_DOT;
-const ENTER_REACH = 12, ENTER_BACK = 1.70158;
+const REVEAL_MARGIN = 9, RIPPLE_PEAK = 10;
 const WAVE_HALF = WAVE_BARS >> 1;
 const WAVE_LEFT = DIVIDER_LEFT + ((DIVIDER_DOTS - WAVE_BARS) >> 1) * DIVIDER_PITCH;
+const OPEN_MS = RIPPLE_DELAY + WAVE_HALF * RIPPLE_STAGGER + RIPPLE_MS;
 // The words in, that bubble conforms to the user's bubble and pushes itself up into the
 // page as it (LIFT_MS), the waveform drawing back into its middle over the first WAVE_OUT
 // of the way (of NORMAL_MAX).
@@ -320,31 +324,35 @@ export default class Chat {
     this.waveform = new Waveform();
     this.expand = 0;
     this.waveHalf = -1;
-    this.listenAnimation = new Animation(EXPAND_MS, easeInOut, progress => {
-      this.expand = progress;
+    this.micSquash = 0;
+    // Each bar's rise above its level as the ripple passes, by its distance from the middle.
+    const bumps = this.waveBumps = new Int8Array(WAVE_HALF + 1);
+    this.listenAnimation = new Animation(OPEN_MS, linear, progress => {
+      const time = progress * OPEN_MS / NORMAL_MAX;
+      // The bubble: an ease-out-back, quick off the mark, a little past the end and back.
+      const u = Math.min(1, time / EXPAND_MS) - 1;
+      this.expand = NORMAL_MAX * (1 + 2 * u * u * u + u * u) | 0;
+      // The microphone: eased in, so it starts to squash gently and goes flat quickly.
+      const squash = Math.min(1, time / SQUASH_MS);
+      this.micSquash = squash * squash;
+      openShape(this.expand);
+      const inside = (shape[1] >> 1) - REVEAL_MARGIN;
+      for (let bar = 0; bar <= WAVE_HALF; bar++) {
+        const start = RIPPLE_DELAY + bar * RIPPLE_STAGGER;
+        // The bars from here out are not in yet: not their turn, or the edge not past them.
+        if (bar > this.waveHalf && (time < start || bar * DIVIDER_PITCH + 1 > inside)) break;
+        this.waveHalf = Math.max(this.waveHalf, bar);
+        const ripple = (time - start) / RIPPLE_MS;
+        bumps[bar] = ripple > 0 && ripple < 1
+          ? Math.round((RIPPLE_PEAK - (bar >> 1)) * Math.sin(Math.PI * ripple)) : 0;
+      }
       this.invalidateDock();
     }, () => {
       this.expand = NORMAL_MAX;
-      this.listenAnimation = new Animation(ENTER_MS, linear, progress => {
-        const t = progress / NORMAL_MAX;
-        if (t < ENTER_STRETCH) {
-          // The stretch: the sliver grows tall.
-          const up = t / ENTER_STRETCH;
-          this.waveHalf = ENTER_SLIVER;
-          this.waveExtra = Math.round(ENTER_REACH * (1 - (1 - up) * (1 - up)));
-        } else {
-          // The squash: an ease-out-back, past the end and back.
-          const u = (t - ENTER_STRETCH) / (1 - ENTER_STRETCH) - 1;
-          const out = 1 + (ENTER_BACK + 1) * u * u * u + ENTER_BACK * u * u;
-          this.waveHalf = ENTER_SLIVER + Math.round((WAVE_HALF - ENTER_SLIVER) * out);
-          this.waveExtra = Math.round(ENTER_REACH * Math.max(0, 1 - out));
-        }
-        this.invalidateDock();
-      }, () => {
-        this.waveHalf = WAVE_HALF;
-        this.waveExtra = 0;
-        this.invalidateDock();
-      }).schedule();
+      this.waveHalf = WAVE_HALF;
+      this.micSquash = 1;
+      this.waveBumps = undefined;
+      this.invalidateDock();
     }).schedule();
     this.waveTimer = setInterval(() => {
       this.waveform.step();
@@ -399,7 +407,7 @@ export default class Chat {
     if (this.waveTimer !== undefined) clearInterval(this.waveTimer);
     this.waveTimer = undefined;
     this.listenAnimation?.unschedule();
-    this.listenAnimation = undefined;
+    this.listenAnimation = this.waveBumps = undefined;
     const listening = this.phase === "listening";
     openShape(listening ? this.expand : 0);
     const x = shape[0], w = shape[1], radius = shape[2], half = listening ? this.waveHalf : -1;
@@ -1165,7 +1173,10 @@ export default class Chat {
       openShape(open);
       render.drawRoundRect(shape[0], BUBBLE_Y - BUBBLE_RADIUS, shape[1], 2 * BUBBLE_RADIUS, VIVID_CERULEAN,
                            shape[2], GCORNERS_ALL);
-      if (this.waveHalf >= 0) this.waveform?.draw(WAVE_LEFT, BAR_TOP, WHITE, this.waveHalf, this.waveExtra);
+      if (this.waveHalf >= 0) this.waveform?.draw(WAVE_LEFT, BAR_TOP, WHITE, this.waveHalf, this.waveBumps);
+      // The microphone squashing flat over the bars coming in under it, a little wider.
+      const squash = this.micSquash;
+      if (squash < 0.9) drawMicScaled(DOCK_X, BUBBLE_Y, 1 + squash / 4, 1 - squash);
       return;
     }
     const bubble = phase === "idle" || phase === "regrowing";

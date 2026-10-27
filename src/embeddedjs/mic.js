@@ -16,6 +16,13 @@ export const drawMic = (cx, cy) => {
   render.drawDCI(glyph, cx - (MIC_WIDTH >> 1), cy - (MIC_HEIGHT >> 1));
 };
 
+// The microphone scaled by (sx, sy) about the same centre, as it squashes away when the
+// user starts to speak: a scaled copy for each of those few frames.
+export const drawMicScaled = (cx, cy, sx, sy) => {
+  glyph ??= new Poco.PebbleDrawCommandImage(MIC_SMALL);
+  render.drawDCI(glyph.clone().scale(sx, sy), cx - (MIC_WIDTH * sx / 2 | 0), cy - (MIC_HEIGHT * sy / 2 | 0));
+};
+
 // A live recording's waveform: bars scroll in from the right, their heights following a
 // speech-like envelope of syllables and pauses.
 // The bars are the middle 31 of the divider's dots (chat.js), 2px wide, 4px apart: the
@@ -51,12 +58,12 @@ export class Waveform {
 
   // Draws the bars from the dots at x (the first) and row `top` (each dot is rows `top`
   // and `top` + 1), each growing evenly up and down from its dot: the middle bar and
-  // `half` either side (past the ends, quiet dots), each `extra` rows taller.
-  draw(x, top, color, half = BARS >> 1, extra = 0) {
+  // `half` either side, each `bumps[n]` rows taller, n bars from the middle, if given.
+  draw(x, top, color, half = BARS >> 1, bumps) {
     const middle = BARS >> 1;
     for (let index = middle - half; index <= middle + half; index++) {
-      const level = index >= 0 && index < BARS ? this.levels[index] : 0;
-      const reach = Math.min(BAR_REACH, (BAR_REACH * level / 255 | 0) + extra);
+      const bump = bumps ? bumps[index < middle ? middle - index : index - middle] : 0;
+      const reach = Math.min(BAR_REACH, (BAR_REACH * this.levels[index] / 255 | 0) + bump);
       render.fillRectangle(color, x + index * BAR_PITCH, top - reach, BAR_WIDTH, 2 + 2 * reach);
     }
   }
