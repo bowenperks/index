@@ -145,14 +145,17 @@ const draw = () => {
   drawPending = false;
   const start = now();
   // @strip profile
-  const kind = chat.dirty === true ? "full" : chat.dirty === "scroll" ? "shift" : "band";
+  const kind = chat.dirty === true ? "full" : chat.dirty === "scroll" ? "shift" :
+    chat.dirty === "confirm" ? "window" : "band";
+  // A frame after the question has waited on the user's answer follows no stall.
+  const waited = chat.confirm.active && !chat.confirm.moving;
   stats.texts = 0;
   if (Natives.renderStamp() < lastEndMs) underCopy++;
   // @endstrip
   if (chat.render()) frameSubmitted();
   const end = now();
   // @strip profile
-  if (PROFILE) record(chat.phase + " " + kind, start - lastDrawEnd, end - start, stats.texts);
+  if (PROFILE) record(chat.phase + " " + kind, waited ? 0 : start - lastDrawEnd, end - start, stats.texts);
   lastDrawEnd = end;
   lastEndMs = Natives.nowMs();
   // @endstrip
@@ -182,8 +185,8 @@ const ask = question => {
 
 const playNext = () => {
   if (dictating || chat.busy) return;
-  const [question, widget, text] = DEMO[nextDemo];
-  if (!chat.listen(question, RECORDING_MS, {widget, text})) return;
+  const [question, widget, text, confirm] = DEMO[nextDemo];
+  if (!chat.listen(question, RECORDING_MS, {widget, text, confirm})) return;
   trace(`Index Alloy playtest ${nextDemo + 1}/${DEMO.length}: ${question}\n`);
   nextDemo = (nextDemo + 1) % DEMO.length;
 };
@@ -315,10 +318,14 @@ const AUTOREEL = 0;
 let reelTurn = 0;
 const reelNext = () => {
   if (reelTurn++ >= AUTOREEL) return;
+  // A turn that asks first is answered Yes once the window has landed, and thinks again
+  // before its result, so its Up and Down steps and the next turn wait for it.
+  const asks = DEMO[nextDemo][3] !== undefined, wait = asks ? 5000 : 0;
   talk();
-  setTimeout(() => chat.scroll(false), 8000);
-  setTimeout(() => chat.scroll(true), 8800);
-  setTimeout(reelNext, 9600);
+  if (asks) setTimeout(() => chat.confirm.press(), 6000);
+  setTimeout(() => chat.scroll(false), 8000 + wait);
+  setTimeout(() => chat.scroll(true), 8800 + wait);
+  setTimeout(reelNext, 9600 + wait);
 };
 if (PLAYTEST && AUTOREEL) setTimeout(reelNext, 3000);
 // @endstrip

@@ -49,6 +49,17 @@ little, then it falls in on its middle, paling, and is gone. The result takes th
 notification peek), then flies up into its card as the card rises in. The microphone
 then unfolds in its bubble out of a dot, as the dictation screen's does.
 
+Before an action that cannot be taken back, such as unlocking a door or sending someone a
+message, Index asks first, the way PebbleOS asks what to do with a notification when Select
+is pressed on it. The cube folds into its dot, then a black window comes in from the right
+with the firmware's own window push and pushes the page out of the frame to the left,
+leaving its right edge in a 16px strip. At the top of the window is the widget's icon in
+white; below it the question, which says exactly what will happen and to what ("Send
+'running late' to Sam?"); and at the bottom the answers, YES above NO, as the action menu
+lists its items. Up and Down move between them, Select takes the one in white, and Back is
+NO. There is no timeout. After a Yes the cube turns while Index acts and the result follows
+as usual; after a No, Index says so in place of the user's words ("Not sent").
+
 The microphone's art is PebbleOS's `Pebble_80x80_Microphone.svg` (Apache-2.0, Google
 LLC), copied to `resources/svg/`; the dock's is redrawn from it on the pixel grid by
 `tools/build_assets.py` (DOCK_MIC). The thinking cube is drawn at the dock's size the way PebbleOS
@@ -78,17 +89,22 @@ pebble install --phone localhost:54405 dist/index-alloy-playtest.pbw
 Press Select, or tap the dock, to play the next request of the demo reel: a
 simulated 1.8 s recording, then its transcription, thinking, and the result:
 
-1. "Send a message to my wife. Roz just said there's a bike in the distance." Beeper card
-2. "Remind me tomorrow at 4 pm to adjust the bike brakes." Reminder card
-3. "Turn the living room lights off." Google Home card
-4. "What do I have to do today?" To-dos and a timeline snapshot
-5. "Does the GDPR say you have to delete every possible piece of personally
+1. "Unlock the front door." Index asks "Unlock the front door?", then a Google Home card
+2. "Tell Sam I'm running late." Index asks "Send 'running late' to Sam?", then a Beeper card
+3. "Send a message to my wife. Roz just said there's a bike in the distance." Index asks
+   first, then a Beeper card
+4. "Remind me tomorrow at 4 pm to adjust the bike brakes." Reminder card
+5. "Turn the living room lights off." Google Home card
+6. "What do I have to do today?" To-dos and a timeline snapshot
+7. "Does the GDPR say you have to delete every possible piece of personally
    identifiable information?" Web Answer card
-6. "Where is Elizabeth?" Map with a pin and the address
-7. "What's the weather this afternoon?" Weather card
-8. "What's the Spanish word for afternoon?" Translation card
+8. "Where is Elizabeth?" Map with a pin and the address
+9. "What's the weather this afternoon?" Weather card
+10. "What's the Spanish word for afternoon?" Translation card
 
-The next press loops back to the first. Presses while Index is busy are ignored.
+The next press loops back to the first. Presses while Index is busy are ignored, except
+while it asks before an action: Select takes the answer in white (YES at first), Up and Down
+move between them, and Back is NO.
 Relaunching starts blank again; no microphone is needed. The demo's requests and
 results (and any history to open on) are in `src/embeddedjs/prompts.js`.
 
@@ -110,17 +126,33 @@ pebble install --phone <phone-ip> dist/index-alloy.pbw
 
 The regular build keeps native dictation on Select: the system's dictation screen
 records, and its words come in whole. Spoken requests close to the demo's pick the
-same results (a message names its own recipient and words); anything else gets a
-reply listing what to try. Nothing is really sent, set or switched. The build helper
-stages to `/tmp/index-alloy` (set `INDEX_ALLOY_BUILD_DIR` to build elsewhere),
-bundles the JavaScript modules into one (tools/bundle.py), shortens the bundle's names
-with terser (see Memory; `npm install` in `tools/` fetches it once), and uses the
-installed Pebble SDK's Moddable toolchain.
+same results (a message names its own recipient and words, and is asked about before it
+goes); anything else gets a reply listing what to try. Nothing is really sent, set or
+switched. The build helper stages to `/tmp/index-alloy` (set `INDEX_ALLOY_BUILD_DIR` to
+build elsewhere), bundles the JavaScript modules into one (tools/bundle.py), shortens the
+bundle's names with terser (see Memory; `npm install` in `tools/` fetches it once), and
+uses the installed Pebble SDK's Moddable toolchain.
 
 App timers use `src/embeddedjs/timers.js`, which starts one native clock after UI
 setup. Keep new delays and animation timers on that scheduler: repeatedly adding
 native timers inside callbacks can overflow the current Alloy host's event queue.
 Animations paint on their existing frame tick.
+
+## Confirming an action
+
+Any result can ask first. Give it a `confirm` of the question and what Index says to a No
+(`src/embeddedjs/prompts.js`):
+
+```js
+["Unlock the front door.", "home", "Unlocked the front door",
+ ["Unlock the front door?", "The front door stays locked"]],
+```
+
+`src/embeddedjs/confirm.js` can be reused by another Alloy page: its header comment lists
+what the page passes in and what it must provide. Besides Index's `theme.js`, `motion.js`
+and `timers.js`, it needs `shiftColumns` and `iconDraw` from `src/c/scroll.c`, declared in
+the manifest's FFI table, and the page calling `hookRender` after its first frame, as
+chat.js does: until then scroll.c has no drawing context and both do nothing.
 
 ## Memory
 

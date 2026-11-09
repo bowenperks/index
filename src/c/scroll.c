@@ -159,6 +159,58 @@ int32_t shiftRows(int32_t top, int32_t bottom, int32_t dy) {
   return 1;
 }
 
+// Moves the frame buffer's rows from `top` up to `bottom` sideways by `dx`: left for a
+// positive dx (the columns from dx take the place of those from 0) and right for a negative
+// one. The window in confirm.js comes in from the right pushing the page out to the left,
+// the two moving as one, so most of each frame is the one before it, shifted. Returns 0
+// until the context is known.
+int32_t shiftColumns(int32_t top, int32_t bottom, int32_t dx) {
+  if (!s_ctx) return 0;
+  GBitmap *buffer = graphics_capture_frame_buffer(s_ctx);
+  if (!buffer) return 0;
+  const GRect bounds = gbitmap_get_bounds(buffer);
+  const uint16_t stride = gbitmap_get_bytes_per_row(buffer);
+  uint8_t *data = gbitmap_get_data(buffer);
+  const int32_t width = bounds.size.w, step = dx < 0 ? -dx : dx;
+  if (top < bounds.origin.y) top = bounds.origin.y;
+  if (bottom > bounds.origin.y + bounds.size.h) bottom = bounds.origin.y + bounds.size.h;
+  if (step > 0 && step < width) {
+    for (int32_t row = top; row < bottom; row++) {
+      uint8_t *line = data + row * stride;
+      if (dx > 0) memmove(line, line + step, width - step);
+      else memmove(line + step, line, width - step);
+    }
+  }
+  graphics_release_frame_buffer(s_ctx, buffer);
+  return 1;
+}
+
+// Black for white and white for black, in a command's outline and fill (clear stays clear).
+static GColor prv_swap(GColor color) {
+  if (color.argb == GColorBlack.argb) return GColorWhite;
+  if (color.argb == GColorWhite.argb) return GColorBlack;
+  return color;
+}
+
+static bool prv_invert(GDrawCommand *command, uint32_t index, void *context) {
+  gdraw_command_set_stroke_color(command, prv_swap(gdraw_command_get_stroke_color(command)));
+  gdraw_command_set_fill_color(command, prv_swap(gdraw_command_get_fill_color(command)));
+  return true;
+}
+
+// A widget's vector icon for the window in confirm.js, its black and white swapped so it
+// shows on the window's black: an outline-only part, such as a house's roof, would otherwise
+// vanish into it. Loaded for the draw and freed straight after, like bitmapDraw: Alloy's own
+// images stay loaded once made.
+void iconDraw(int32_t id, int32_t x, int32_t y) {
+  if (!s_ctx) return;
+  GDrawCommandImage *image = gdraw_command_image_create_with_resource(id);
+  if (!image) return;
+  gdraw_command_list_iterate(gdraw_command_image_get_command_list(image), prv_invert, NULL);
+  gdraw_command_image_draw(s_ctx, image, GPoint(x, y));
+  gdraw_command_image_destroy(image);
+}
+
 // Native memory taken during an Up / Down step leaves this much of the app's heap free:
 // the JavaScript heaps grow into it (by 1 KB at a time), and when they cannot, the app
 // aborts. Short of it, the step's icons stand straight, which is safe.

@@ -17,6 +17,7 @@
 			"./weather",
 			"./cards",
 			"./mic",
+			"./confirm",
 			"./chat"
 		]
 	},
@@ -39,6 +40,14 @@
 				"returns": "int32_t"
 			},
 			"shiftRows": {
+				"arguments": [
+					"int32_t",
+					"int32_t",
+					"int32_t"
+				],
+				"returns": "int32_t"
+			},
+			"shiftColumns": {
 				"arguments": [
 					"int32_t",
 					"int32_t",
@@ -95,6 +104,14 @@
 				"returns": "void"
 			},
 			"bitmapDraw": {
+				"arguments": [
+					"int32_t",
+					"int32_t",
+					"int32_t"
+				],
+				"returns": "void"
+			},
+			"iconDraw": {
 				"arguments": [
 					"int32_t",
 					"int32_t",

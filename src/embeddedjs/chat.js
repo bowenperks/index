@@ -8,7 +8,9 @@
 // running along it in white; then that bubble becomes the user's whole message, pushing
 // itself up into the page, and the thinking cube grows where the microphone was. When the
 // result comes in it takes the words' place, so the history keeps results rather than
-// questions.
+// questions. Before an action it cannot take back, Index asks first (confirm.js): a window
+// with the question and the answers comes in from the right, as the firmware's action menu
+// does over a notification, pushing the page out of the frame to the left.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
@@ -22,6 +24,7 @@ import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
 import {drawMic, drawMicScaled, Waveform, BARS as WAVE_BARS} from "mic";
+import Confirm from "confirm";
 import {history} from "prompts";
 // @strip profile
 import {stats} from "theme";
@@ -146,6 +149,12 @@ const WIDGETS = {
   translate: [assets.TRANSLATE_MEDIUM, assets.TRANSLATE_DOCK, "translate"],
 };
 
+// Each widget's 25px icon, the size a notification's banner shows, for Index's question
+// before it acts (confirm.js).
+const CONFIRM_ICONS = {beeper: assets.BEEPER_ICON, reminder: assets.REMINDER_ICON, home: assets.HOME_ICON,
+                       today: assets.TODAY_ICON, web: assets.WEB_ICON, map: assets.PIN_ICON,
+                       translate: assets.TRANSLATE_ICON};
+
 // A fading bubble steps through the 64-colour palette from Index blue to the page.
 const FADE_BLUES = [render.makeColor(170, 255, 255), render.makeColor(85, 170, 255), VIVID_CERULEAN];
 
@@ -208,6 +217,8 @@ export default class Chat {
     this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidateFlight() : this.invalidateDock(),
                                          () => this.landResult(), () => this.finishTurn());
     this.micUnfold = new IconTransition(() => this.invalidateDock(), undefined, () => this.idle());
+    // Asking before an action (askConfirm): its window repaints on its own (render).
+    this.confirm = new Confirm(() => this.invalidateConfirm(), yes => this.confirmed(yes));
     for (const [day, widget, text] of history()) {
       this.items.push(day ? this.size({type: "day", text: day}) : this.makeResult(widget, text));
     }
@@ -391,6 +402,7 @@ export default class Chat {
     this.question = question;
     this.answer = answer;
     this.query = this.prepared = undefined;
+    this.asked = false;
     this.trim();
     this.setOffset(this.maxOffset, animated);
   }
@@ -483,6 +495,32 @@ export default class Chat {
   thinkingDone() {
     this.phase = "answering";
     this.invalidateDock();
+    if (this.answer.confirm && !this.asked) this.askConfirm();
+    else this.result();
+  }
+
+  // --- asking before acting ---------------------------------------------------------------
+
+  // A result with a `confirm` ([the question, what Index says to a No]) asks first
+  // (confirm.js), once the cube has folded into its dot.
+  askConfirm() {
+    this.phase = "confirming";
+    this.asked = true;
+    this.touchOrigin = undefined;
+    this.confirm.start(this.answer.confirm[0], CONFIRM_ICONS[this.answer.widget], this);
+    this.invalidate();
+  }
+
+  // The window has gone. Yes: the cube turns while Index acts, and the result follows as any
+  // result does. No: Index says so in the user's words' place.
+  confirmed(yes) {
+    this.phase = "answering";
+    this.invalidate();
+    if (yes) {
+      this.startThinking();
+      return;
+    }
+    this.prepared = this.makeResult(undefined, this.answer.confirm[1]);
     this.result();
   }
 
@@ -733,6 +771,10 @@ export default class Chat {
   // scrolls the page; a tap on the dock asks.
   touch(points) {
     if (!this.visible || !points) return;
+    if (this.confirm.active) {
+      this.confirm.touch(points);
+      return;
+    }
     if (this.busy) {
       this.touchOrigin = undefined;
       return;
@@ -825,6 +867,13 @@ export default class Chat {
     const dirty = this.dirty, dock = this.dockDirty;
     this.dirty = this.dockDirty = undefined;
     if (dirty === undefined && !dock) return;
+    if (this.confirm.active) {
+      // Index asking: the window paints the frame, the page under it as well when more than
+      // the window changed.
+      this.confirm.render(dirty === "confirm" && !dock);
+      this.drawnOffset = this.offset;
+      return true;
+    }
     if (dirty === "scroll" && !this.notice && this.scrollScreen(this.offset - this.drawnOffset, dock)) {
       // Painted by scrollScreen.
     } else if (dirty !== true && dirty !== "scroll" && !this.notice) {
@@ -974,8 +1023,9 @@ export default class Chat {
 
 
   // Marks part of the page (page coordinates) to be repainted. `dirty` is true for the
-  // whole screen, "area" for the band from dirtyTop to dirtyBottom and "scroll" when
-  // only the offset changed; two kinds of change in one frame repaint the screen.
+  // whole screen, "area" for the band from dirtyTop to dirtyBottom, "scroll" when only the
+  // offset changed and "confirm" when only the window in confirm.js did; two kinds of change
+  // in one frame repaint the screen.
   invalidateArea(top, bottom) {
     if (this.dirty === undefined) {
       this.dirty = "area";
@@ -993,6 +1043,13 @@ export default class Chat {
   invalidateScroll() {
     if (this.dirty === undefined) this.dirty = "scroll";
     else if (this.dirty !== "scroll") this.dirty = true;
+    this.requestDraw();
+  }
+
+  // Index's question before it acts, on its own (render).
+  invalidateConfirm() {
+    if (this.dirty === undefined) this.dirty = "confirm";
+    else if (this.dirty !== "confirm") this.dirty = true;
     this.requestDraw();
   }
 
