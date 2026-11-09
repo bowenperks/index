@@ -318,9 +318,9 @@ const AUTOREEL = 0;
 let reelTurn = 0;
 const reelNext = () => {
   if (reelTurn++ >= AUTOREEL) return;
-  // A turn that asks first is answered Yes once the window has landed, and thinks again
-  // before its result, so its Up and Down steps and the next turn wait for it.
-  const asks = DEMO[nextDemo][3] !== undefined, wait = asks ? 5000 : 0;
+  // A turn that asks first is answered Yes once the window has landed, so its result, its
+  // Up and Down steps and the next turn come later.
+  const asks = DEMO[nextDemo][3] !== undefined, wait = asks ? 1500 : 0;
   talk();
   if (asks) setTimeout(() => chat.confirm.press(), 6000);
   setTimeout(() => chat.scroll(false), 8000 + wait);

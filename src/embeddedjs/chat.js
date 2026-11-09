@@ -402,7 +402,6 @@ export default class Chat {
     this.question = question;
     this.answer = answer;
     this.query = this.prepared = undefined;
-    this.asked = false;
     this.trim();
     this.setOffset(this.maxOffset, animated);
   }
@@ -495,7 +494,7 @@ export default class Chat {
   thinkingDone() {
     this.phase = "answering";
     this.invalidateDock();
-    if (this.answer.confirm && !this.asked) this.askConfirm();
+    if (this.answer.confirm) this.askConfirm();
     else this.result();
   }
 
@@ -505,22 +504,17 @@ export default class Chat {
   // (confirm.js), once the cube has folded into its dot.
   askConfirm() {
     this.phase = "confirming";
-    this.asked = true;
     this.touchOrigin = undefined;
     this.confirm.start(this.answer.confirm[0], CONFIRM_ICONS[this.answer.widget], this);
     this.invalidate();
   }
 
-  // The window has gone. Yes: the cube turns while Index acts, and the result follows as any
-  // result does. No: Index says so in the user's words' place.
+  // The window has gone, and the result comes in at once, the widget's icon unfolding in the
+  // dock with no more thinking: the action was approved. After a No, Index says so instead.
   confirmed(yes) {
     this.phase = "answering";
     this.invalidate();
-    if (yes) {
-      this.startThinking();
-      return;
-    }
-    this.prepared = this.makeResult(undefined, this.answer.confirm[1]);
+    if (!yes) this.prepared = this.makeResult(undefined, this.answer.confirm[1]);
     this.result();
   }
 
