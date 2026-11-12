@@ -2,7 +2,6 @@
 // Resource ids count from 1 in package.json's media order; only the ids the
 // modules name are listed.
 
-export const BUBBLE_TAIL = 3;
 export const WEATHER_DISC = 4;
 export const PEN = 5;
 export const WEATHER_ICON = 6;

@@ -11,7 +11,6 @@
 // questions. Before an action it cannot take back, Index asks first (confirm.js): a window
 // with the question and the answers comes in from the right, as the firmware's action menu
 // does over a notification, pushing the page out of the frame to the left.
-import Poco from "commodetto/Poco";
 import Debug from "debug";
 import Button from "pebble/button";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
@@ -19,7 +18,7 @@ import * as assets from "assets";
 import {Animation, NORMAL_MAX, linear, easeInOut, easeOut, now, moook, MOOOK_MS, segmented,
         fraction} from "motion";
 import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, BLACK, DARK_GRAY, VIVID_CERULEAN,
-        ink, font, drawText, textWidth, measure, resetPen, art, setBand, inBand} from "theme";
+        ink, font, drawText, textWidth, measure, art, setBand, inBand} from "theme";
 import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
 import {drawWeather, weatherHeight, DEMO as WEATHER_DEMO} from "weather";
@@ -40,6 +39,12 @@ const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6
 // 36px icon sits in the cutout, rising 15px above the bottom edge and hanging 20px below
 // it; there is no other label.
 const CARD_RADIUS = 7;
+// Index's replies and cards are outlined as Pebble draws its icons (pebble-dev/iconography,
+// STYLE-GUIDE.md): a uniform LINE black line on the pixel grid around a white focal fill. A
+// reply's tail is Pebble's conversation icon's: the bubble's left edge carried TAIL rows
+// straight down, then back up to its bottom edge at 45 degrees, a pixel a row; so the
+// bubble's bottom-left corner is square (TAIL_CORNERS: top-left, top-right, bottom-right).
+const LINE = 2, REPLY_RADIUS = 7, TAIL = 6, TAIL_CORNERS = 11;
 const CUT_WIDTH = 40, CUT_HEIGHT = 19, ICON_ABOVE = 15, ICON_BELOW = 36 - 1 - ICON_ABOVE;
 // The rich bodies' bottom padding is measured from their last row's caps, so they clear
 // the cutout by 15px more for its descenders and the gap.
@@ -219,7 +224,6 @@ export default class Chat {
       this.textDescender = 4;
     }
     this.lineHeight = this.font.height;   // read once: font metrics are a native call
-    this.tail = new Poco.PebbleDrawCommandImage(assets.BUBBLE_TAIL).clone();
     this.thinking = new Thinking(() => this.invalidateDock(), () => this.thinkingDone());
     // The result's icon unfolds and holds in the dock, then flies up the page.
     this.transition = new IconTransition(() => this.transition.isFlying ? this.invalidateFlight() : this.invalidateDock(),
@@ -615,7 +619,7 @@ export default class Chat {
   fadeOut(item) {
     new Animation(FADE_MS, linear, progress => {
       item.shade = progress < NORMAL_MAX / 3 ? 170 : progress < NORMAL_MAX * 2 / 3 ? 85 : 0;
-      this.invalidateArea(item.y - DOT_REACH, item.y + item.h);
+      this.invalidateArea(item.y - DOT_REACH, item.y + item.h + TAIL);
     }).schedule();
   }
 
@@ -1188,9 +1192,11 @@ export default class Chat {
     if (page > top) {
       let cleared = top;
       for (let index = 0; index < items.length; index++) {
+        // An entry reaches TAIL rows below its box (a reply's tail): those are cleared with
+        // it and drawn by it, and the next entry's clearing starts below them.
         const item = items[index], y = item.y - offset + item.rise;
-        if (y + item.h <= top || y >= page) continue;
-        const end = Math.min(y + item.h, page);
+        if (y + item.h + TAIL <= top || y >= page) continue;
+        const end = Math.min(y + item.h + TAIL, page);
         if (end > cleared) {
           render.fillRectangle(WHITE, 0, cleared, WIDTH, end - cleared);
           cleared = end;
@@ -1217,7 +1223,7 @@ export default class Chat {
     // @strip dictation
     if (this.notice) {
       const h = this.bubbleHeight(this.notice);
-      this.drawBubble(MARGIN, DOCK_TOP - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255, true);
+      this.drawBubble(MARGIN, DOCK_TOP - h - MARGIN, WIDTH - BUBBLE_INSET, h, this.notice, 255);
     }
     // @endstrip
   }
@@ -1242,7 +1248,7 @@ export default class Chat {
     } else if (item.widget) {
       this.drawCard(item, y);
     } else {
-      this.drawBubble(x, y, w, h, item.lines, shade, false);
+      this.drawBubble(x, y, w, h, item.lines, shade);
       if (item.pending && shade === 255) {
         render.drawCircle(WHITE, x + w - 3, y + 3, PENDING_RADIUS + 2);
         render.drawCircle(PENDING, x + w - 3, y + 3, PENDING_RADIUS);
@@ -1270,22 +1276,25 @@ export default class Chat {
     }
   }
 
-  // Index's reply bubble: the thin grey outline of the home greeting, with its tail.
-  drawBubble(x, y, w, h, lines, shade, fill) {
+  // Index's reply bubble: its LINE outline and white fill, and the tail below its left edge,
+  // drawn a row at a time on the pixel grid. Rows `step` below the bubble's last row hold the
+  // left edge and the 45-degree edge (LINE pixels each, the latter `right` at its right),
+  // white between them; the two rows of the bubble's bottom edge above are opened white, so
+  // the tail's inside joins the bubble's.
+  drawBubble(x, y, w, h, lines, shade) {
     if (!shade) return;
-    const border = ink(Math.min(shade, 170));
-    // Filled only over content (the notice): the page's strips are already white.
-    if (fill) render.drawRoundRect(x, y, w, h, WHITE, 7, GCORNERS_ALL);
-    resetPen();
-    render.frameRoundRect(x, y, w, h, border, 7);
-    if (this.tailBorder !== border) {
-      // Recoloured only when the shade changes, not for every bubble every frame.
-      this.tail.process(command => command.stroke = border);
-      this.tailBorder = border;
+    const color = ink(shade), last = y + h - 1;
+    render.drawRoundRect(x, y, w, h, color, REPLY_RADIUS, TAIL_CORNERS);
+    render.drawRoundRect(x + LINE, y + LINE, w - 2 * LINE, h - 2 * LINE, WHITE, REPLY_RADIUS - LINE, TAIL_CORNERS);
+    for (let step = 1 - LINE; step <= TAIL; step++) {
+      const right = x + TAIL + 1 - step, inside = right - LINE + 1 - (x + LINE);
+      if (step > 0) {
+        render.fillRectangle(color, x, last + step, LINE, 1);
+        render.fillRectangle(color, Math.max(x, right - LINE + 1), last + step, LINE, 1);
+      }
+      if (inside > 0) render.fillRectangle(WHITE, x + LINE, last + step, inside, 1);
     }
-    render.drawDCI(this.tail, x - 5, y + h - 1 - 9);
-    render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
-    this.drawLines(lines, ink(shade), x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
+    this.drawLines(lines, color, x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
   }
 
   // Lines of conversation text, left-aligned at `x`, the first line's box at `top`.
@@ -1330,9 +1339,8 @@ export default class Chat {
     // Indexed, not destructured: destructuring makes an iterator, every card, every frame.
     const widget = WIDGETS[item.widget], source = widget[3];
     const h = item.card, edge = y + h - 1, quiet = ink(Math.min(shade, 170));
-    resetPen();
-    render.frameRoundRect(x, y, w, h, quiet, CARD_RADIUS);
-    render.drawLine(x + 7, y, x + w - 8, y, ink(shade), 1);
+    render.drawRoundRect(x, y, w, h, ink(shade), CARD_RADIUS, GCORNERS_ALL);
+    render.drawRoundRect(x + LINE, y + LINE, w - 2 * LINE, h - 2 * LINE, WHITE, CARD_RADIUS - LINE, GCORNERS_ALL);
     // The cutout: the frame's corner cleared away, nothing drawn around it.
     render.fillRectangle(WHITE, x, edge - CUT_HEIGHT + 1, CUT_WIDTH, CUT_HEIGHT);
     // The icon, once the card is fully revealed and the flying icon has landed (and not
