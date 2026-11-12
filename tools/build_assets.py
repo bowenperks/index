@@ -11,8 +11,6 @@ Writes, from the committed artwork in resources/:
 - resources/pdc/index-bubble-tail.pdc: the tail of Index's reply bubbles.
 - resources/pdc/index-weather-disc.pdc: the weather card's 70px Chrome Yellow disc.
 - resources/pdc/index-pen.pdc: a 1px line that resets the stroke width (see pen()).
-- resources/pdc/index-widget-*.pdc: the widget icons, drawn by hand at 25, 36 and 42px on
-  Pebble's pixel grid (ICONS), and the dock's microphone (DOCK_MIC).
   The shapes are integer PDC paths and a PDC circle because the firmware draws those with
   the same gpath_draw_filled / graphics_draw_line / graphics_fill_circle calls the native
   app used, antialiasing included; Poco has no filled polygons of its own.
@@ -22,6 +20,7 @@ Writes, from the committed artwork in resources/:
     python3 tools/build_assets.py
 """
 from pathlib import Path
+from xml.etree import ElementTree
 import json
 import math
 import re
@@ -85,190 +84,86 @@ def weather_disc():
     return image(71, 71, [command(2, [(35, 35)], fill=CHROME_YELLOW, radius=35)])
 
 
-# The widget icons, drawn by hand at each size Index shows them, on Pebble's pixel grid as
-# the iconography style guide asks (github.com/pebble-dev/iconography, STYLE-GUIDE.md):
-# 25px with 2px lines (the confirm window and the map's pin), 36px in the cards' cutouts and
-# 42px in the dock, the cube's size, both with 3px lines. A size is drawn for its grid, not
-# scaled from another. Coordinates are Pebble's: an integer is a pixel's centre, so 2px
-# lines run on x.5 (pixel edges) and 3px lines on integers (pixel centres), and every edge is
-# at one of the guide's angles (check()). Closed shapes have a white focal fill. A shape is
-# ('path', points, fill, open[, width]) or ('dot', centre, radius), a filled black circle:
-# a scaled icon moves a circle's centre but never its radius, so only small dots are circles.
+# The new widget icons, drawn on the existing icons' 25px grid in their style: black
+# 2px outlines with white fill (4px on the 80px versions the peek unfolds). Each shape is
+# (kind, points, fill, open) with 'path' points in pixels, or ('circle', centre, radius).
+ICON_SIZE, LARGE_SIZE = 25, 80
 ICONS = {
     # Google Home: a house with eaves and a door.
-    'home': {
-        25: [('path', [(4.5, 22.5), (4.5, 12.5), (12.5, 4.5), (20.5, 12.5), (20.5, 22.5)], WHITE, False),
-             ('path', [(2.5, 13.5), (12.5, 3.5), (22.5, 13.5)], 0, True),
-             ('path', [(10.5, 22.5), (10.5, 16.5), (14.5, 16.5), (14.5, 22.5)], 0, True)],
-        36: [('path', [(7, 33), (7, 18), (18, 7), (29, 18), (29, 33)], WHITE, False),
-             ('path', [(3, 20), (18, 5), (33, 20)], 0, True),
-             ('path', [(15, 33), (15, 24), (21, 24), (21, 33)], 0, True)],
-        42: [('path', [(8, 39), (8, 21), (21, 8), (34, 21), (34, 39)], WHITE, False),
-             ('path', [(4, 23), (21, 6), (38, 23)], 0, True),
-             ('path', [(18, 39), (18, 28), (24, 28), (24, 39)], 0, True)],
-    },
-    # Web Answer: a globe with one meridian and the equator, its outline a pixel circle.
-    'web': {
-        25: [('path', [(9.5, 2.5), (15.5, 2.5), (17.5, 3.5), (21.5, 7.5), (22.5, 9.5), (22.5, 15.5), (21.5, 17.5),
-                       (17.5, 21.5), (15.5, 22.5), (9.5, 22.5), (7.5, 21.5), (3.5, 17.5), (2.5, 15.5), (2.5, 9.5),
-                       (3.5, 7.5), (7.5, 3.5)], WHITE, False),
-             ('path', [(12.5, 2.5), (14.5, 3.5), (15.5, 5.5), (16.5, 8.5), (16.5, 16.5), (15.5, 19.5), (14.5, 21.5),
-                       (12.5, 22.5), (10.5, 21.5), (9.5, 19.5), (8.5, 16.5), (8.5, 8.5), (9.5, 5.5), (10.5, 3.5)],
-              0, False),
-             ('path', [(2.5, 12.5), (22.5, 12.5)], 0, True)],
-        36: [('path', [(14, 4), (22, 4), (26, 6), (30, 10), (32, 14), (32, 22), (30, 26), (26, 30), (22, 32), (14, 32),
-                       (10, 30), (6, 26), (4, 22), (4, 14), (6, 10), (10, 6)], WHITE, False),
-             ('path', [(18, 4), (21, 5), (22, 6), (23, 8), (24, 11), (24, 25), (23, 28), (22, 30), (21, 31), (18, 32),
-                       (15, 31), (14, 30), (13, 28), (12, 25), (12, 11), (13, 8), (14, 6), (15, 5)], 0, False),
-             ('path', [(4, 18), (32, 18)], 0, True)],
-        42: [('path', [(16, 5), (26, 5), (30, 7), (35, 12), (37, 16), (37, 26), (35, 30), (30, 35), (26, 37), (16, 37),
-                       (12, 35), (7, 30), (5, 26), (5, 16), (7, 12), (12, 7)], WHITE, False),
-             ('path', [(21, 5), (24, 6), (26, 8), (27, 10), (28, 13), (28, 29), (27, 32), (26, 34), (24, 36), (21, 37),
-                       (18, 36), (16, 34), (15, 32), (14, 29), (14, 13), (15, 10), (16, 8), (18, 6)], 0, False),
-             ('path', [(5, 21), (37, 21)], 0, True)],
-    },
-    # Today: a clipboard with two ticked rows.
-    'today': {
-        25: [('path', [(4.5, 4.5), (20.5, 4.5), (20.5, 22.5), (4.5, 22.5)], WHITE, False),
-             ('path', [(8.5, 2.5), (16.5, 2.5), (16.5, 6.5), (8.5, 6.5)], WHITE, False),
-             ('path', [(6.5, 10.5), (8.5, 12.5), (11.5, 9.5)], 0, True),
-             ('path', [(13.5, 11.5), (17.5, 11.5)], 0, True),
-             ('path', [(6.5, 17.5), (8.5, 19.5), (11.5, 16.5)], 0, True),
-             ('path', [(13.5, 18.5), (17.5, 18.5)], 0, True)],
-        36: [('path', [(7, 7), (30, 7), (30, 33), (7, 33)], WHITE, False),
-             ('path', [(12, 4), (25, 4), (25, 10), (12, 10)], WHITE, False),
-             ('path', [(10, 16), (12, 18), (16, 14)], 0, True),
-             ('path', [(20, 16), (26, 16)], 0, True),
-             ('path', [(10, 26), (12, 28), (16, 24)], 0, True),
-             ('path', [(20, 26), (26, 26)], 0, True)],
-        42: [('path', [(8, 8), (35, 8), (35, 39), (8, 39)], WHITE, False),
-             ('path', [(14, 5), (29, 5), (29, 12), (14, 12)], WHITE, False),
-             ('path', [(12, 19), (14, 21), (19, 16)], 0, True),
-             ('path', [(23, 19), (30, 19)], 0, True),
-             ('path', [(12, 30), (14, 32), (19, 27)], 0, True),
-             ('path', [(23, 30), (30, 30)], 0, True)],
-    },
+    'home': [
+        ('path', [(5, 22), (5, 12), (12.5, 4.5), (20, 12), (20, 22)], WHITE, False),
+        ('path', [(2.5, 13.5), (12.5, 3.5), (22.5, 13.5)], 0, True),
+        ('path', [(10.5, 22), (10.5, 16), (14.5, 16), (14.5, 22)], 0, True),
+    ],
+    # Web Answer: a globe with one meridian and the equator. Its outline is a 32-sided
+    # path, not a circle: the firmware scales a PDC by moving its points and never a
+    # circle's radius, so as the icon unfolds, flies and stretches, a circle stayed its
+    # full size while the meridian and equator inside it moved.
+    'web': [
+        ('path', [(12 + 10 * math.sin(math.pi * k / 16), 12 - 10 * math.cos(math.pi * k / 16))
+                  for k in range(32)], WHITE, False),
+        ('path', [(12 + 4.5 * x, 12 + 10 * y) for x, y in (
+            (0, -1), (0.56, -0.92), (0.87, -0.71), (1, -0.38), (1, 0.38), (0.87, 0.71),
+            (0.56, 0.92), (0, 1), (-0.56, 0.92), (-0.87, 0.71), (-1, 0.38), (-1, -0.38),
+            (-0.87, -0.71), (-0.56, -0.92))], 0, False),
+        ('path', [(2, 12), (22, 12)], 0, True),
+    ],
+    # Today: a clipboard with three ticked rows.
+    'today': [
+        ('path', [(4, 4), (21, 4), (21, 23), (4, 23)], WHITE, False),
+        ('path', [(9, 2), (16, 2), (16, 6), (9, 6)], WHITE, False),
+        ('path', [(7, 10.5), (8.5, 12), (10.5, 9.5)], 0, True),
+        ('path', [(13, 11), (18, 11)], 0, True),
+        ('path', [(7, 17.5), (8.5, 19), (10.5, 16.5)], 0, True),
+        ('path', [(13, 18), (18, 18)], 0, True),
+    ],
     # Translate: a speech bubble with an A behind one with lines of text.
-    'translate': {
-        25: [('path', [(1.5, 2.5), (15.5, 2.5), (15.5, 14.5), (6.5, 14.5), (3.5, 17.5), (3.5, 14.5), (1.5, 14.5)],
-              WHITE, False),
-             ('path', [(5.5, 10.5), (8.5, 4.5), (11.5, 10.5)], 0, True),
-             ('path', [(6.5, 8.5), (10.5, 8.5)], 0, True),
-             ('path', [(9.5, 9.5), (23.5, 9.5), (23.5, 20.5), (21.5, 20.5), (21.5, 23.5), (18.5, 20.5), (9.5, 20.5)],
-              WHITE, False),
-             ('path', [(12.5, 13.5), (20.5, 13.5)], 0, True),
-             ('path', [(12.5, 16.5), (18.5, 16.5)], 0, True)],
-        36: [('path', [(2, 4), (23, 4), (23, 21), (9, 21), (5, 25), (5, 21), (2, 21)], WHITE, False),
-             ('path', [(8, 15), (12, 7), (16, 15)], 0, True),
-             ('path', [(10, 11), (14, 11)], 0, True),
-             ('path', [(14, 14), (34, 14), (34, 30), (31, 30), (31, 34), (27, 30), (14, 30)], WHITE, False),
-             ('path', [(18, 20), (30, 20)], 0, True),
-             ('path', [(18, 24), (27, 24)], 0, True)],
-        42: [('path', [(2, 5), (27, 5), (27, 25), (10, 25), (6, 29), (6, 25), (2, 25)], WHITE, False),
-             ('path', [(9, 18), (14, 8), (19, 18)], 0, True),
-             ('path', [(12, 12), (16, 12)], 0, True),
-             ('path', [(16, 16), (40, 16), (40, 35), (36, 35), (36, 40), (31, 35), (16, 35)], WHITE, False),
-             ('path', [(21, 23), (35, 23)], 0, True),
-             ('path', [(21, 28), (32, 28)], 0, True)],
-    },
-    # Beeper (a message): a speech bubble with three dots.
-    'beeper': {
-        25: [('path', [(1.5, 2.5), (22.5, 2.5), (22.5, 17.5), (7.5, 17.5), (2.5, 22.5), (2.5, 17.5), (1.5, 17.5)],
-              WHITE, False),
-             ('dot', (7, 10), 1), ('dot', (12, 10), 1), ('dot', (17, 10), 1)],
-        36: [('path', [(2, 4), (34, 4), (34, 25), (12, 25), (4, 33), (4, 25), (2, 25)], WHITE, False),
-             ('dot', (11, 14), 2), ('dot', (18, 14), 2), ('dot', (25, 14), 2)],
-        42: [('path', [(2, 5), (40, 5), (40, 29), (15, 29), (5, 39), (5, 29), (2, 29)], WHITE, False),
-             ('dot', (12, 17), 2), ('dot', (21, 17), 2), ('dot', (30, 17), 2)],
-    },
-    # Reminder: a calendar page with its rings and a tick.
-    'reminder': {
-        25: [('path', [(2.5, 2.5), (21.5, 2.5), (21.5, 22.5), (2.5, 22.5)], WHITE, False),
-             ('path', [(7.5, 0.5), (7.5, 6.5)], 0, True),
-             ('path', [(16.5, 0.5), (16.5, 6.5)], 0, True),
-             ('path', [(8.5, 14.5), (10.5, 16.5), (15.5, 11.5)], 0, True),
-             ('path', [(9.5, 6.5), (5.5, 6.5)], WHITE, True),
-             ('path', [(14.5, 6.5), (18.5, 6.5)], WHITE, True)],
-        36: [('path', [(4, 4), (31, 4), (31, 33), (4, 33)], WHITE, False),
-             ('path', [(11, 1), (11, 10)], 0, True),
-             ('path', [(24, 1), (24, 10)], 0, True),
-             ('path', [(12, 21), (15, 24), (22, 17)], 0, True),
-             ('path', [(14, 10), (8, 10)], WHITE, True),
-             ('path', [(21, 10), (27, 10)], WHITE, True)],
-        42: [('path', [(5, 5), (36, 5), (36, 39), (5, 39)], WHITE, False),
-             ('path', [(13, 1), (13, 12)], 0, True),
-             ('path', [(28, 1), (28, 12)], 0, True),
-             ('path', [(14, 25), (17, 28), (25, 20)], 0, True),
-             ('path', [(9, 12), (17, 12)], WHITE, True),
-             ('path', [(24, 12), (32, 12)], WHITE, True)],
-    },
-    # Map: a pin with its ring, the ring an octagon so it scales with the pin.
-    'pin': {
-        25: [('path', [(11.5, 23.5), (4.5, 16.5), (2.5, 12.5), (2.5, 5.5), (6.5, 1.5), (16.5, 1.5), (20.5, 5.5),
-                       (20.5, 12.5), (18.5, 16.5)], WHITE, False),
-             ('path', [(10.5, 5.5), (12.5, 5.5), (14.5, 7.5), (14.5, 9.5), (12.5, 11.5), (10.5, 11.5), (8.5, 9.5),
-                       (8.5, 7.5)], WHITE, False)],
-        36: [('path', [(17, 34), (7, 24), (4, 18), (4, 8), (10, 2), (24, 2), (30, 8), (30, 18), (27, 24)], WHITE, False),
-             ('path', [(15, 8), (19, 8), (22, 11), (22, 15), (19, 18), (15, 18), (12, 15), (12, 11)], WHITE, False)],
-        42: [('path', [(20, 40), (8, 28), (5, 22), (5, 9), (12, 2), (28, 2), (35, 9), (35, 22), (32, 28)], WHITE, False),
-             ('path', [(18, 9), (22, 9), (25, 12), (25, 16), (22, 19), (18, 19), (15, 16), (15, 12)], WHITE, False)],
-    },
-    # Weather (partly cloudy): a sun behind a cloud, their rays and edges 2px.
-    'weather': {
-        36: [('path', [(19, 6), (24, 6), (26, 8), (26, 13), (24, 15), (19, 15), (17, 13), (17, 8)], WHITE, False),
-             ('path', [(25, 30), (27, 28), (27, 24), (25, 22), (18, 22), (15, 19), (10, 19), (7, 22), (4, 22), (1, 25),
-                       (1, 27), (4, 30)], WHITE, False),
-             ('path', [(29.5, 10.5), (31.5, 10.5)], 0, True, 2), ('path', [(11.5, 10.5), (13.5, 10.5)], 0, True, 2),
-             ('path', [(21.5, 0.5), (21.5, 3.5)], 0, True, 2),
-             ('path', [(7.5, 22.5), (11.5, 22.5), (13.5, 24.5)], 0, True, 2),
-             ('path', [(11.5, 33.5), (27.5, 33.5)], 0, True, 2), ('path', [(23.5, 18.5), (34.5, 18.5)], 0, True, 2),
-             ('path', [(29.5, 3.5), (27.5, 5.5)], 0, True, 2), ('path', [(13.5, 3.5), (15.5, 5.5)], 0, True, 2)],
-        42: [('path', [(21, 7), (26, 7), (29, 10), (29, 15), (26, 18), (21, 18), (18, 15), (18, 10)], WHITE, False),
-             ('path', [(28, 35), (31, 32), (31, 28), (28, 25), (20, 25), (17, 22), (11, 22), (7, 26), (4, 26), (1, 29),
-                       (1, 32), (4, 35)], WHITE, False),
-             ('path', [(32.5, 12.5), (35.5, 12.5)], 0, True, 2), ('path', [(11.5, 12.5), (14.5, 12.5)], 0, True, 2),
-             ('path', [(23.5, 0.5), (23.5, 3.5)], 0, True, 2),
-             ('path', [(7.5, 26.5), (12.5, 26.5), (15.5, 29.5)], 0, True, 2),
-             ('path', [(12.5, 39.5), (30.5, 39.5)], 0, True, 2), ('path', [(26.5, 21.5), (40.5, 21.5)], 0, True, 2),
-             ('path', [(32.5, 4.5), (30.5, 6.5)], 0, True, 2), ('path', [(14.5, 4.5), (16.5, 6.5)], 0, True, 2)],
-    },
+    'translate': [
+        ('path', [(1, 2), (15, 2), (15, 14), (6, 14), (3, 17), (3, 14), (1, 14)], WHITE, False),
+        ('path', [(4.5, 11.5), (8, 4.5), (11.5, 11.5)], 0, True),
+        ('path', [(5.75, 9), (10.25, 9)], 0, True),
+        ('path', [(10, 10), (24, 10), (24, 21), (22, 21), (22, 24), (19, 21), (10, 21)], WHITE, False),
+        ('path', [(13, 14), (21, 14)], 0, True),
+        ('path', [(13, 17.5), (19, 17.5)], 0, True),
+    ],
 }
-# Each size's file and line width: the confirm window's and pin's 25px, the cards' 36px
-# (medium) and the dock's 42px.
-SIZES = {25: ('', 2), 36: ('-medium', 3), 42: ('-dock', 3)}
-# The guide's angles, as the smallest whole run of each edge (dx, dy): 0, 3:1, 2:1, 1:1,
-# 1:2, 1:3 and 90 degrees.
-PERMITTED = {(1, 0), (3, 1), (2, 1), (1, 1), (1, 2), (1, 3), (0, 1)}
 
 
-def check(name, size, points, open_path, width):
-    """Fails the build on a point off its line width's grid or an edge at another angle."""
-    on_grid = (lambda v: v == round(v)) if width % 2 else (lambda v: v - math.floor(v) == 0.5)
-    edges = zip(points, points[1:] + ([] if open_path else points[:1]))
-    for (x0, y0), (x1, y1) in edges:
-        if not (on_grid(x0) and on_grid(y0)):
-            raise SystemExit(f'{name} {size}px: ({x0}, {y0}) is off the {width}px grid')
-        dx, dy = round(abs(x1 - x0) * 2), round(abs(y1 - y0) * 2)
-        run = math.gcd(dx, dy) or 1
-        if (dx, dy) != (0, 0) and (dx // run, dy // run) not in PERMITTED:
-            raise SystemExit(f'{name} {size}px: ({x0}, {y0})-({x1}, {y1}) is not at one of the guide\'s angles')
-
-
-def icon(name, size):
-    _, width = SIZES[size]
+def icon(shapes, scale, stroke_width):
     commands = []
-    for shape in ICONS[name][size]:
-        if shape[0] == 'dot':
+    for shape in shapes:
+        if shape[0] == 'circle':
             (x, y), radius = shape[1], shape[2]
-            commands.append(command(2, [(x, y)], fill=BLACK, radius=radius))
+            commands.append(command(2, [(round(x * scale), round(y * scale))], stroke=BLACK,
+                                    width=stroke_width, fill=WHITE, radius=round(radius * scale)))
             continue
-        points, fill, open_path = shape[1], shape[2], shape[3]
-        line = shape[4] if len(shape) > 4 else width
-        check(name, size, points, open_path, line)
+        _, points, fill, open_path = shape
         # Kind 3 is a precise path: coordinates in eighths of a pixel.
-        commands.append(struct.pack('<5B2H', 3, 0, BLACK, line, fill, int(open_path), len(points)) +
-                        b''.join(struct.pack('<2h', round(x * 8), round(y * 8)) for x, y in points))
+        commands.append(struct.pack('<5B2H', 3, 0, BLACK, stroke_width, fill, int(open_path), len(points)) +
+                        b''.join(struct.pack('<2h', round(x * scale * 8), round(y * scale * 8))
+                                 for x, y in points))
+    size = round(ICON_SIZE * scale)
     return image(size, size, commands)
+
+
+def scale_pdc(path, factor, stroke):
+    """A PDC image scaled by `factor`, its stroke widths mapped by `stroke(width)`, for the
+    cards' medium icons. Circles' radii round up a little so small dots keep their weight."""
+    data = path.read_bytes()
+    assert data[:4] == b'PDCI'
+    _, _, width, height, count = struct.unpack_from('<BBhhH', data, 8)
+    at, commands = 16, []
+    for _ in range(count):
+        kind, hidden, color, stroke_width, fill, extra, points = struct.unpack_from('<5B2H', data, at)
+        at += 9
+        coords = [struct.unpack_from('<2h', data, at + 4 * index) for index in range(points)]
+        at += 4 * points
+        if kind == 2:
+            extra = max(1, round(extra * factor + 0.3))
+        commands.append(struct.pack('<5B2H', kind, hidden, color, stroke(stroke_width) if stroke_width else 0,
+                                    fill, extra, points) +
+                        b''.join(struct.pack('<2h', round(x * factor), round(y * factor)) for x, y in coords))
+    return image(round(width * factor), round(height * factor), commands)
 
 
 # The dock's microphone, in its blue bubble: Pebble's microphone (above) redrawn at the
@@ -296,6 +191,23 @@ def dock_microphone():
                 b''.join(struct.pack('<2h', round(x * 8), round(y * 8)) for x, y in points)
                 for points, width, fill, open_path in DOCK_MIC]
     return image(*DOCK_MIC_SIZE, commands)
+
+
+MEDIUM_SIZE = 36   # the cards' icons, in their bottom-left cutouts
+
+
+def medium_icons():
+    # From the 25px icons (2px strokes become 3px) and, for the weather, the 80px vector
+    # partly-cloudy icon the peek unfolds (its 4px and 3px strokes become 3px and 2px).
+    scale = MEDIUM_SIZE / ICON_SIZE
+    for name in ('beeper', 'reminder', 'pin'):
+        (PDC / f'index-widget-{name}-medium.pdc').write_bytes(
+            scale_pdc(PDC / f'index-widget-{name}.pdc', scale, lambda width: round(width * scale)))
+    for name, shapes in ICONS.items():
+        (PDC / f'index-widget-{name}-medium.pdc').write_bytes(icon(shapes, scale, 3))
+    (PDC / 'index-widget-weather-medium.pdc').write_bytes(
+        scale_pdc(PDC / 'index-weather-partly-cloudy-large.pdc', MEDIUM_SIZE / LARGE_SIZE,
+                  lambda width: round(width * 0.75)))
 
 
 def street_map(width=176, height=94):
@@ -357,6 +269,72 @@ def typing_bubble():
     return image(right + 1, bottom + 1, [path(outer, BLACK), path(inset(outer, weight), WHITE)])
 
 
+MIC_SIZE = 80
+# A result's icon unfolds where the thinking cube was, as big as the cube: the cube's ink
+# at rest is 40 x 44px with its anti-aliased edge (resources/images/thinking/cube-12.png),
+# 42px drawn; each icon is scaled so its larger ink dimension is CUBE_INK, its strokes
+# 3px (the 25px icons' 2px, as the cards' 36px icons; the weather's 4px and 3px become 3px
+# and 2px).
+CUBE_INK = 42
+
+
+def ink_size(data):
+    """A PDC image's drawn width and height: its points (Pebble coordinates, pixel
+    centres) and circles, each widened by half its stroke, plus the pixel itself."""
+    _, _, width, height, count = struct.unpack_from('<BBhhH', data, 8)
+    at, xs, ys = 16, [], []
+    for _ in range(count):
+        kind, hidden, stroke, stroke_width, fill, extra, points = struct.unpack_from('<5B2H', data, at)
+        coords = [struct.unpack_from('<2h', data, at + 9 + 4 * index) for index in range(points)]
+        at += 9 + 4 * points
+        half = (stroke_width if stroke else 0) / 2
+        scale = 8 if kind == 3 else 1
+        for x, y in coords:
+            x, y = x / scale, y / scale
+            reach = half + (extra if kind == 2 else 0)
+            xs += [x - reach, x + reach]
+            ys += [y - reach, y + reach]
+    return max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+
+
+def dock_icon(path, stroke):
+    data = path.read_bytes()
+    return scale_pdc(path, CUBE_INK / max(ink_size(data)), stroke)
+
+
+def microphone(size=MIC_SIZE, stroke=None, colour=BLACK, fill_colour=WHITE):
+    # The voice input's microphone: Pebble's own, the one the system dictation screen shows
+    # (VOICE_MICROPHONE_LARGE). resources/svg/Pebble_80x80_Microphone.svg is a copy of
+    # PebbleOS's resources/normal/snowy/images/Pebble_80x80_Microphone.svg (Apache-2.0,
+    # Google LLC). Its shapes are all straight (a polygon, lines and a polyline), converted
+    # here as PebbleOS's svg2commands would, at its own 80px with its 4px and 3px strokes,
+    # or scaled to `size` with strokes `stroke(width)` (the dock's: 25px of ink on a 24px
+    # canvas, the outline and base 2px as a 25px icon's, the grille, rays and stand 1px),
+    # in `colour`, its capsule filled with `fill_colour` (0: none).
+    scale = size / 80
+    svg = ElementTree.parse(ROOT / 'resources/svg/Pebble_80x80_Microphone.svg').getroot()
+    commands = []
+    for element in svg:
+        tag = element.tag.split('}')[-1]
+        if tag == 'line':
+            points = [(float(element.get('x1')), float(element.get('y1'))),
+                      (float(element.get('x2')), float(element.get('y2')))]
+        elif tag in ('polygon', 'polyline'):
+            values = [float(value) for value in element.get('points').replace(',', ' ').split()]
+            points = list(zip(values[::2], values[1::2]))
+            if tag == 'polygon' and points[0] == points[-1]:
+                points.pop()
+        else:
+            continue
+        fill = fill_colour if element.get('fill', 'none').upper() == '#FFFFFF' else 0
+        width = float(element.get('stroke-width', '1'))
+        width = stroke(width) if stroke else max(1, round(width * scale))
+        commands.append(struct.pack('<5B2H', 3, 0, colour, width, fill, int(tag != 'polygon'), len(points)) +
+                        b''.join(struct.pack('<2h', round(x * scale * 8), round(y * scale * 8))
+                                 for x, y in points))
+    return image(size, size, commands)
+
+
 # (JavaScript name, file under resources/, type). Order is the resource id order.
 STATIC = [
     ('HOME_ICONS', 'pdc/index-home-icons-light.pdc', 'raw'),
@@ -365,13 +343,18 @@ STATIC = [
     ('WEATHER_DISC', 'pdc/index-weather-disc.pdc', 'raw'),
     ('PEN', 'pdc/index-pen.pdc', 'raw'),
     ('WEATHER_ICON', 'images/weather-partly-cloudy-50.png', 'bitmap'),
+    ('WEATHER_ICON_TINY', 'images/weather-partly-cloudy-25.png', 'bitmap'),
+    ('WEATHER_LARGE', 'pdc/index-weather-partly-cloudy-large.pdc', 'raw'),
 ]
-for size, (suffix, _) in SIZES.items():
-    for widget, sizes in ICONS.items():
-        if size in sizes:
-            STATIC.append((f'{widget.upper()}_{["ICON", "MEDIUM", "DOCK"][list(SIZES).index(size)]}',
-                           f'pdc/index-widget-{widget}{suffix}.pdc', 'raw'))
+for widget in ('alarm', 'beeper', 'timer', 'reminder', 'note', 'tool', 'pin') + tuple(ICONS):
+    STATIC += [(f'{widget.upper()}_ICON', f'pdc/index-widget-{widget}.pdc', 'raw'),
+               (f'{widget.upper()}_LARGE', f'pdc/index-widget-{widget}-large.pdc', 'raw')]
+for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
+    STATIC.append((f'{widget.upper()}_MEDIUM', f'pdc/index-widget-{widget}-medium.pdc', 'raw'))
+for widget in ('weather', 'beeper', 'reminder', 'pin') + tuple(ICONS):
+    STATIC.append((f'{widget.upper()}_DOCK', f'pdc/index-widget-{widget}-dock.pdc', 'raw'))
 STATIC += [
+    ('MIC', 'pdc/index-mic.pdc', 'raw'),
     ('MIC_SMALL', 'pdc/index-mic-small.pdc', 'raw'),
     ('STREET_MAP', 'pdc/index-street-map.pdc', 'raw'),
     ('TYPING_BUBBLE', 'pdc/index-typing-bubble.pdc', 'raw'),
@@ -383,12 +366,19 @@ def build():
     (PDC / 'index-bubble-tail.pdc').write_bytes(reply_tail())
     (PDC / 'index-weather-disc.pdc').write_bytes(weather_disc())
     (PDC / 'index-pen.pdc').write_bytes(pen())
+    (PDC / 'index-mic.pdc').write_bytes(microphone())
     (PDC / 'index-mic-small.pdc').write_bytes(dock_microphone())
     (PDC / 'index-street-map.pdc').write_bytes(street_map())
     (PDC / 'index-typing-bubble.pdc').write_bytes(typing_bubble())
-    for name, sizes in ICONS.items():
-        for size in sizes:
-            (PDC / f'index-widget-{name}{SIZES[size][0]}.pdc').write_bytes(icon(name, size))
+    medium_icons()
+    for name, shapes in ICONS.items():
+        (PDC / f'index-widget-{name}.pdc').write_bytes(icon(shapes, 1, 2))
+        (PDC / f'index-widget-{name}-large.pdc').write_bytes(icon(shapes, LARGE_SIZE / ICON_SIZE, 4))
+    for name in ('beeper', 'reminder', 'pin') + tuple(ICONS):
+        (PDC / f'index-widget-{name}-dock.pdc').write_bytes(
+            dock_icon(PDC / f'index-widget-{name}.pdc', lambda width: 3))
+    (PDC / 'index-widget-weather-dock.pdc').write_bytes(
+        dock_icon(PDC / 'index-weather-partly-cloudy-large.pdc', lambda width: round(width * 0.75)))
     frames = sorted((ROOT / 'resources/images/thinking').glob('cube-[0-9][0-9].png'))
     assert len(frames) == 81, 'run tools/build_cube.py for the thinking cube'
 
