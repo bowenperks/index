@@ -13,8 +13,11 @@ All results are hardcoded: nothing is really sent, set or switched.
 - **Answer:** the widget's icon unfolds and flies into its card: message, reminder, smart
   home, to-dos, web answer, map, weather or translation. Up and Down snap between cards, as
   Timeline does.
-- **Confirm:** before an irreversible action, a window slides in with PebbleOS's own window
-  push, showing the widget's icon, the question and YES or NO. Back is NO.
+- **Confirm:** before an irreversible action, Index asks in the conversation, with Yes and
+  No pills under its question to tap. Select opens the answers in a window that slides in
+  with PebbleOS's own window push; Back is No.
+- **Icons** are drawn by hand at each size on Pebble's pixel grid, following the
+  [iconography style guide](https://github.com/pebble-dev/iconography/blob/master/STYLE-GUIDE.md).
 
 ## Build and run
 

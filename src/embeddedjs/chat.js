@@ -54,7 +54,7 @@ const WIDGET_ICON = 36;
 // line. A bubble's text is centred between its edges, 10 rows each side.
 const CARD_TEXT_INSET = 10, CARD_TEXT_GAP = 11, BUBBLE_TEXT_GAP = 10;
 const SOURCE_GAP = 7, SOURCE_CAP_TOP = 7, SOURCE_CAP = 11;
-const ICON_INK_TOP = {beeper: 3, reminder: 0, home: 4, web: 2};
+const ICON_INK_TOP = {beeper: 3, reminder: 0, home: 4, web: 3};
 const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
 const SNAP_SLACK = 4;    // px: Up / Down pass over a stop this close to where the page is

@@ -60,96 +60,9 @@
           "spaceOptimization": "memory"
         },
         {
-          "type": "bitmap",
-          "name": "INDEX_WEATHER_ICON_TINY",
-          "file": "images/weather-partly-cloudy-25.png",
-          "memoryFormat": "Smallest",
-          "spaceOptimization": "memory"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_WEATHER_LARGE",
-          "file": "pdc/index-weather-partly-cloudy-large.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_ALARM_ICON",
-          "file": "pdc/index-widget-alarm.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_ALARM_LARGE",
-          "file": "pdc/index-widget-alarm-large.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_BEEPER_ICON",
-          "file": "pdc/index-widget-beeper.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_BEEPER_LARGE",
-          "file": "pdc/index-widget-beeper-large.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_TIMER_ICON",
-          "file": "pdc/index-widget-timer.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_TIMER_LARGE",
-          "file": "pdc/index-widget-timer-large.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_REMINDER_ICON",
-          "file": "pdc/index-widget-reminder.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_REMINDER_LARGE",
-          "file": "pdc/index-widget-reminder-large.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_NOTE_ICON",
-          "file": "pdc/index-widget-note.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_NOTE_LARGE",
-          "file": "pdc/index-widget-note-large.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_TOOL_ICON",
-          "file": "pdc/index-widget-tool.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_TOOL_LARGE",
-          "file": "pdc/index-widget-tool-large.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_PIN_ICON",
-          "file": "pdc/index-widget-pin.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_PIN_LARGE",
-          "file": "pdc/index-widget-pin-large.pdc"
-        },
-        {
           "type": "raw",
           "name": "INDEX_HOME_ICON",
           "file": "pdc/index-widget-home.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_HOME_LARGE",
-          "file": "pdc/index-widget-home-large.pdc"
         },
         {
           "type": "raw",
@@ -158,18 +71,8 @@
         },
         {
           "type": "raw",
-          "name": "INDEX_WEB_LARGE",
-          "file": "pdc/index-widget-web-large.pdc"
-        },
-        {
-          "type": "raw",
           "name": "INDEX_TODAY_ICON",
           "file": "pdc/index-widget-today.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_TODAY_LARGE",
-          "file": "pdc/index-widget-today-large.pdc"
         },
         {
           "type": "raw",
@@ -178,28 +81,18 @@
         },
         {
           "type": "raw",
-          "name": "INDEX_TRANSLATE_LARGE",
-          "file": "pdc/index-widget-translate-large.pdc"
+          "name": "INDEX_BEEPER_ICON",
+          "file": "pdc/index-widget-beeper.pdc"
         },
         {
           "type": "raw",
-          "name": "INDEX_WEATHER_MEDIUM",
-          "file": "pdc/index-widget-weather-medium.pdc"
+          "name": "INDEX_REMINDER_ICON",
+          "file": "pdc/index-widget-reminder.pdc"
         },
         {
           "type": "raw",
-          "name": "INDEX_BEEPER_MEDIUM",
-          "file": "pdc/index-widget-beeper-medium.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_REMINDER_MEDIUM",
-          "file": "pdc/index-widget-reminder-medium.pdc"
-        },
-        {
-          "type": "raw",
-          "name": "INDEX_PIN_MEDIUM",
-          "file": "pdc/index-widget-pin-medium.pdc"
+          "name": "INDEX_PIN_ICON",
+          "file": "pdc/index-widget-pin.pdc"
         },
         {
           "type": "raw",
@@ -223,23 +116,23 @@
         },
         {
           "type": "raw",
-          "name": "INDEX_WEATHER_DOCK",
-          "file": "pdc/index-widget-weather-dock.pdc"
+          "name": "INDEX_BEEPER_MEDIUM",
+          "file": "pdc/index-widget-beeper-medium.pdc"
         },
         {
           "type": "raw",
-          "name": "INDEX_BEEPER_DOCK",
-          "file": "pdc/index-widget-beeper-dock.pdc"
+          "name": "INDEX_REMINDER_MEDIUM",
+          "file": "pdc/index-widget-reminder-medium.pdc"
         },
         {
           "type": "raw",
-          "name": "INDEX_REMINDER_DOCK",
-          "file": "pdc/index-widget-reminder-dock.pdc"
+          "name": "INDEX_PIN_MEDIUM",
+          "file": "pdc/index-widget-pin-medium.pdc"
         },
         {
           "type": "raw",
-          "name": "INDEX_PIN_DOCK",
-          "file": "pdc/index-widget-pin-dock.pdc"
+          "name": "INDEX_WEATHER_MEDIUM",
+          "file": "pdc/index-widget-weather-medium.pdc"
         },
         {
           "type": "raw",
@@ -263,8 +156,23 @@
         },
         {
           "type": "raw",
-          "name": "INDEX_MIC",
-          "file": "pdc/index-mic.pdc"
+          "name": "INDEX_BEEPER_DOCK",
+          "file": "pdc/index-widget-beeper-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_REMINDER_DOCK",
+          "file": "pdc/index-widget-reminder-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_PIN_DOCK",
+          "file": "pdc/index-widget-pin-dock.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "INDEX_WEATHER_DOCK",
+          "file": "pdc/index-widget-weather-dock.pdc"
         },
         {
           "type": "raw",
