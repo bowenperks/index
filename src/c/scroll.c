@@ -118,14 +118,33 @@ void cubeRelease(void) {
   s_cube_id = 0;
 }
 
-// A card's bitmap (the weather card's icon), drawn with its transparency as Poco draws one,
-// loaded for the draw and freed straight after, so it holds no memory between frames. Not
-// the cube's slot: the cube and the card can both be on the screen. A bitmap that cannot
-// be loaded (memory) is skipped.
-void bitmapDraw(int32_t id, int32_t x, int32_t y) {
+// A bitmap drawn with its transparency as Poco draws one, loaded for the draw and freed
+// straight after, so it holds no memory between frames: the weather card's icon, and
+// PebbleOS's tick and cross. Those are white, for the firmware's black action bar; with
+// `black` they are drawn black instead, for a white background, by recolouring the loaded
+// bitmap (its palette, or its pixels when it has none), as the firmware tints them: the
+// resource itself is unchanged. Not the cube's slot: the cube and a card can both be on the
+// screen. A bitmap that cannot be loaded (memory) is skipped.
+void bitmapDraw(int32_t id, int32_t x, int32_t y, int32_t black) {
   if (!s_ctx) return;
   GBitmap *bitmap = gbitmap_create_with_resource(id);
   if (!bitmap) return;
+  if (black) {
+    const GBitmapFormat format = gbitmap_get_format(bitmap);
+    GColor *palette = gbitmap_get_palette(bitmap);
+    const int colors = format == GBitmapFormat1BitPalette ? 2 : format == GBitmapFormat2BitPalette ? 4 :
+                       format == GBitmapFormat4BitPalette ? 16 : 0;
+    if (palette && colors) {
+      for (int i = 0; i < colors; i++) palette[i].argb &= 0xC0;   // keep the alpha, drop the colour
+    } else if (format == GBitmapFormat8Bit) {
+      const GRect bounds = gbitmap_get_bounds(bitmap);
+      const uint16_t stride = gbitmap_get_bytes_per_row(bitmap);
+      uint8_t *data = gbitmap_get_data(bitmap);
+      for (int row = 0; row < bounds.size.h; row++) {
+        for (int column = 0; column < bounds.size.w; column++) data[row * stride + column] &= 0xC0;
+      }
+    }
+  }
   GRect bounds = gbitmap_get_bounds(bitmap);
   graphics_context_set_compositing_mode(s_ctx, GCompOpSet);
   graphics_draw_bitmap_in_rect(s_ctx, bitmap, GRect(x, y, bounds.size.w, bounds.size.h));

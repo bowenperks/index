@@ -345,6 +345,10 @@ STATIC = [
     ('WEATHER_ICON', 'images/weather-partly-cloudy-50.png', 'bitmap'),
     ('WEATHER_ICON_TINY', 'images/weather-partly-cloudy-25.png', 'bitmap'),
     ('WEATHER_LARGE', 'pdc/index-weather-partly-cloudy-large.pdc', 'raw'),
+    # PebbleOS's own tick and cross, its action bar's icons as its confirmation dialogs show
+    # them (resources/common/base/images, Apache-2.0), copied unchanged.
+    ('ACTION_BAR_ICON_CHECK', 'images/action_bar_icon_check.png', 'bitmap'),
+    ('ACTION_BAR_ICON_X', 'images/action_bar_icon_x.png', 'bitmap'),
 ]
 for widget in ('alarm', 'beeper', 'timer', 'reminder', 'note', 'tool', 'pin') + tuple(ICONS):
     STATIC += [(f'{widget.upper()}_ICON', f'pdc/index-widget-{widget}.pdc', 'raw'),

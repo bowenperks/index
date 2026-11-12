@@ -131,14 +131,17 @@ const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
 const WAVE_STEP = 70, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
-// Index's question before it acts is answered with two pills under it, Yes then No: white
-// with a PILL_BORDER black border, the user's pills' corners, and as tall as a two-line
-// reply, to be tapped. Their words
-// are the action menu's font at the watch's text size (Gothic 24 Bold, or Gothic 28 at
-// Extra Large), its capitals PILL_CAP_TOP rows into the line and PILL_CAP tall. The one
-// taken shows pressed for PRESSED_MS before the result comes in.
-const PILL_BORDER = 2, PILL_CAP_TOP = 10, PILL_CAP = CONTENT_SIZE === EXTRA_LARGE ? 18 : 14;
-const PILL_LABELS = ["Yes", "No"], PRESSED_MS = 120;
+// Index's question before it acts waits on the user: an orange dot in a white ring on its
+// top-right corner (PENDING_RADIUS, reaching DOT_REACH rows above the bubble) says they have
+// to act. The answers sit at the bottom of the screen, in the dock's place: two pills side by
+// side, white with a PILL_BORDER black border and the user's pills' corners, as tall as a
+// two-line reply so they are easy to tap, PILLS_BOTTOM above the screen's edge. In them are
+// PebbleOS's own tick and cross, its action bar's (ANSWER_SIZES), drawn black, or as the
+// firmware draws them, white, on the one taken, which shows pressed for PRESSED_MS.
+const PILL_BORDER = 2, PILLS_BOTTOM = 6, PRESSED_MS = 120, PENDING_RADIUS = 5, DOT_REACH = 4;
+const PENDING = render.makeColor(255, 85, 0);
+const ANSWER_ICONS = [assets.ACTION_BAR_ICON_CHECK, assets.ACTION_BAR_ICON_X];
+const ANSWER_SIZES = [[17, 14], [15, 16]];
 // On Up and Down, a card's icon travels as Timeline's pin icons do: its trailing edge
 // sets off a sixth of the way through (Timeline's point duration), so the icon stretches
 // along the travel and squashes into place.
@@ -506,21 +509,24 @@ export default class Chat {
   // --- asking before acting ---------------------------------------------------------------
 
   // A result with a `confirm` ([the question, what Index says to a No]) asks first, once the
-  // cube has folded into its dot: the question comes in as Index's reply, with the answers
-  // under it as two pills to tap. Select opens the answers in the window from the right
-  // (confirm.js), for when tapping is not possible; Back is No.
+  // cube has folded into its dot: the question comes in as Index's reply, pending, and the
+  // answers rise into the bottom of the screen as two pills to tap. Select opens the answers
+  // in the window from the right (confirm.js), for when tapping is not possible; Back is No.
   askConfirm() {
     this.phase = "confirming";
     this.touchOrigin = undefined;
-    const pillFont = this.pillFont = CONTENT_SIZE === EXTRA_LARGE ? font("Gothic-Regular", 28) : font("Gothic-Bold", 24);
+    const h = this.bubbleHeight(["", ""]), top = HEIGHT - PILLS_BOTTOM - h;
     const dialog = this.dialog = this.makeResult(undefined, this.answer.confirm[0]);
-    const pills = this.pills = {type: "pills", x: MARGIN, w: WIDTH - 2 * MARGIN, h: this.bubbleHeight(PILL_LABELS),
-                                widths: [textWidth(PILL_LABELS[0], pillFont), textWidth(PILL_LABELS[1], pillFont)]};
-    this.items.push(dialog, pills);
+    dialog.pending = true;
+    // A blank entry under the question keeps it clear of the pills, which stand over the
+    // page's last rows as well as the dock.
+    this.spacer = {type: "spacer", x: 0, w: WIDTH, h: DOCK_TOP - GAP - top, shade: 255, rise: 0};
+    this.pills = {x: MARGIN, w: WIDTH - 2 * MARGIN, h, top};
+    this.items.push(dialog, this.spacer);
     this.layout();
     this.setOffset(this.maxOffset, false);
     this.reveal(dialog);
-    this.reveal(pills);
+    this.movePills(true);
     // Alloy calls every Button bound to a key, so while the window is open these do nothing:
     // it takes Select and Back itself.
     this.keys = new Button({
@@ -555,11 +561,31 @@ export default class Chat {
     this.phase = "answering";
     this.keys.close();
     this.keys = undefined;
-    this.invalidateArea(pills.y, pills.y + pills.h);
-    this.timer = setTimeout(() => {
+    const dialog = this.dialog;
+    dialog.pending = false;
+    this.invalidateArea(dialog.y - DOT_REACH, dialog.y + dialog.h);
+    this.invalidateDock();
+    // The pills pale away before the result's icon unfolds where they were.
+    this.timer = setTimeout(() => this.movePills(false, () => {
+      this.pills = undefined;
+      this.invalidateDock();
       if (!yes) this.prepared = this.makeResult(undefined, this.answer.confirm[1]);
       this.result();
-    }, shown ? 0 : PRESSED_MS);
+    }), shown ? 0 : PRESSED_MS);
+  }
+
+  // The pills rise into the bottom of the screen as they darken in (`entering`), or pale
+  // away; only the dock's band repaints.
+  movePills(entering, done) {
+    const pills = this.pills;
+    pills.shade = entering ? 0 : 255;
+    pills.rise = entering ? RISE : 0;
+    new Animation(entering ? REVEAL_MS : FADE_MS, entering ? easeOut : linear, progress => {
+      const step = progress < NORMAL_MAX / 3 ? 1 : progress < NORMAL_MAX * 2 / 3 ? 2 : 3;
+      pills.shade = entering ? 85 * step : 255 - 85 * step;
+      if (entering) pills.rise = RISE - (RISE * progress / NORMAL_MAX | 0);
+      this.invalidateDock();
+    }, done).schedule();
   }
 
   // The result has come in: the question fades and the result takes its place, rising in
@@ -579,11 +605,8 @@ export default class Chat {
       this.poofQuery(this.items[index], () => {
         if (!flying) this.landResult();
       });
-      // Index's question and its pills, if it asked, pale away with the user's words.
-      if (this.dialog) {
-        this.fadeOut(this.dialog);
-        this.fadeOut(this.pills);
-      }
+      // Index's question, if it asked, pales away with the user's words.
+      if (this.dialog) this.fadeOut(this.dialog);
     }, flying ? UNFOLD_MS + HOLD_MS - POOF_MS : 0);
   }
 
@@ -592,18 +615,19 @@ export default class Chat {
   fadeOut(item) {
     new Animation(FADE_MS, linear, progress => {
       item.shade = progress < NORMAL_MAX / 3 ? 170 : progress < NORMAL_MAX * 2 / 3 ? 85 : 0;
-      this.invalidateArea(item.y, item.y + item.h);
+      this.invalidateArea(item.y - DOT_REACH, item.y + item.h);
     }).schedule();
   }
 
-  // An entry rises into place as it darkens in; only its band repaints.
+  // An entry rises into place as it darkens in; only its band repaints (with the rows a
+  // pending dot reaches above it).
   reveal(item) {
     item.shade = 0;
     item.rise = RISE;
     new Animation(REVEAL_MS, easeOut, progress => {
       item.rise = RISE - (RISE * progress / NORMAL_MAX | 0);
       item.shade = progress < NORMAL_MAX / 3 ? 85 : progress < NORMAL_MAX * 2 / 3 ? 170 : 255;
-      this.invalidateArea(item.y, item.y + item.h + RISE);
+      this.invalidateArea(item.y - DOT_REACH, item.y + item.h + RISE);
     }).schedule();
   }
 
@@ -631,7 +655,7 @@ export default class Chat {
     this.items.splice(index, 1, item);
     if (this.dialog) {
       this.items.splice(this.items.indexOf(this.dialog), 2);
-      this.dialog = this.pills = this.pillFont = undefined;
+      this.dialog = this.spacer = undefined;
     }
     this.layout();
     // The page rests at its end, but never with a card's top tucked under the time bar,
@@ -843,7 +867,7 @@ export default class Chat {
       if (point && !this.touchOrigin) {
         this.touchOrigin = pills.shade === 255 ? point : undefined;
       } else if (!point && this.touchOrigin) {
-        const {x, y} = this.touchOrigin, top = pills.y - this.offset;
+        const {x, y} = this.touchOrigin, top = pills.top;
         this.touchOrigin = undefined;
         if (y >= top && y < top + pills.h && x >= pills.x && x < pills.x + pills.w) {
           this.choose(x < pills.x + (pills.w >> 1));
@@ -1072,6 +1096,7 @@ export default class Chat {
     let top = FLOAT_TOP - moved;
     if (lift) top = Math.min(top, lift.top, lift.drawnTop - moved);
     if (this.landed !== undefined) top = Math.min(top, this.landedTop, this.landed - moved);
+    if (this.pills) top = Math.min(top, this.pills.top);
     return Math.max(this.headerHeight, top);
   }
 
@@ -1174,7 +1199,7 @@ export default class Chat {
       }
       if (page > cleared) render.fillRectangle(WHITE, 0, cleared, WIDTH, page - cleared);
     }
-    if (bottom > FLOAT_TOP) this.drawDock();
+    if (bottom > (this.pills ? this.pills.top : FLOAT_TOP)) this.drawDock();
     // The user's bubble rising out of the dock into the page.
     if (this.lift) this.drawLift();
     // The user's words going as the result comes in.
@@ -1199,6 +1224,7 @@ export default class Chat {
 
   drawItem(item, y) {
     const {x, w, h, shade} = item;
+    if (item.type === "spacer") return;
     if (item.type === "day") {
       drawText(item.text, font("Gothic-Bold", 18), DARK_GRAY, item.textX,
                y + ((DAY_HEIGHT - DAY_CAP) >> 1) - DAY_CAP_TOP);
@@ -1213,31 +1239,33 @@ export default class Chat {
       if (step === 3 && color !== VIVID_CERULEAN) {
         this.drawLines(item.lines, color, x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
       }
-    } else if (item.type === "pills") {
-      this.drawPills(item, y);
     } else if (item.widget) {
       this.drawCard(item, y);
     } else {
       this.drawBubble(x, y, w, h, item.lines, shade, false);
+      if (item.pending && shade === 255) {
+        render.drawCircle(WHITE, x + w - 3, y + 3, PENDING_RADIUS + 2);
+        render.drawCircle(PENDING, x + w - 3, y + 3, PENDING_RADIUS);
+      }
     }
   }
 
-  // The answers under Index's question: Yes and No side by side, the one taken pressed
-  // (black, its word white).
-  drawPills(item, y) {
-    const {x, w, h, shade} = item;
+  // The answers at the bottom of the screen: the tick and the cross side by side, the one
+  // taken pressed (black, its icon white).
+  drawPills() {
+    const pills = this.pills, {x, w, h, shade} = pills, top = pills.top + pills.rise;
     if (!shade) return;
     const pill = (w - GAP) >> 1;
     for (let index = 0; index < 2; index++) {
-      const left = x + index * (pill + GAP), pressed = item.chosen === index;
-      render.drawRoundRect(left, y, pill, h, ink(shade), PILL_RADIUS, GCORNERS_ALL);
+      const left = x + index * (pill + GAP), pressed = pills.chosen === index, size = ANSWER_SIZES[index];
+      render.drawRoundRect(left, top, pill, h, ink(shade), PILL_RADIUS, GCORNERS_ALL);
       if (!pressed) {
-        render.drawRoundRect(left + PILL_BORDER, y + PILL_BORDER, pill - 2 * PILL_BORDER, h - 2 * PILL_BORDER, WHITE,
+        render.drawRoundRect(left + PILL_BORDER, top + PILL_BORDER, pill - 2 * PILL_BORDER, h - 2 * PILL_BORDER, WHITE,
                              PILL_RADIUS - PILL_BORDER, GCORNERS_ALL);
       }
       if (shade === 255) {
-        drawText(PILL_LABELS[index], this.pillFont, pressed ? WHITE : BLACK, left + ((pill - item.widths[index]) >> 1),
-                 y + ((h - PILL_CAP) >> 1) - PILL_CAP_TOP);
+        Natives.bitmapDraw(ANSWER_ICONS[index], left + ((pill - size[0]) >> 1), top + ((h - size[1]) >> 1),
+                           pressed ? 0 : 1);
       }
     }
   }
@@ -1352,6 +1380,11 @@ export default class Chat {
       // The microphone squashing flat over the bars coming in under it, a little wider.
       const squash = this.micSquash;
       if (squash < 0.9) drawMicScaled(DOCK_X, BUBBLE_Y, 1 + squash / 4, 1 - squash);
+      return;
+    }
+    // While Index asks, the answers take the dock's place.
+    if (this.pills) {
+      this.drawPills();
       return;
     }
     const bubble = phase === "idle" || phase === "regrowing";

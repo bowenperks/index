@@ -34,7 +34,7 @@ export const drawWeather = (card, body, shade) => {
     render.drawDCI(art(WEATHER_DISC), cx - DISC / 2, cy - DISC / 2);
     // The 50px bitmap is loaded for this one draw and freed straight after, natively
     // (scroll.c): one of Alloy's own bitmaps would stay in the heap for good once drawn.
-    Natives.bitmapDraw(WEATHER_ICON, cx - ICON / 2, cy - ICON / 2);
+    Natives.bitmapDraw(WEATHER_ICON, cx - ICON / 2, cy - ICON / 2, 0);
   }
   // The condition, temperature and high / low, right-aligned, centred as a group on the disc.
   const conditionTop = discTop + ((DISC - (CONDITION_CAP + CONDITION_GAP + TEMPERATURE_CAP +

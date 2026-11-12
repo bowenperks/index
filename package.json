@@ -72,6 +72,20 @@
           "file": "pdc/index-weather-partly-cloudy-large.pdc"
         },
         {
+          "type": "bitmap",
+          "name": "INDEX_ACTION_BAR_ICON_CHECK",
+          "file": "images/action_bar_icon_check.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "INDEX_ACTION_BAR_ICON_X",
+          "file": "images/action_bar_icon_x.png",
+          "memoryFormat": "Smallest",
+          "spaceOptimization": "memory"
+        },
+        {
           "type": "raw",
           "name": "INDEX_ALARM_ICON",
           "file": "pdc/index-widget-alarm.pdc"

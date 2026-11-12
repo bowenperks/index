@@ -13,8 +13,10 @@ All results are hardcoded: nothing is really sent, set or switched.
 - **Answer:** the widget's icon unfolds and flies into its card: message, reminder, smart
   home, to-dos, web answer, map, weather or translation. Up and Down snap between cards, as
   Timeline does.
-- **Confirm:** before an irreversible action, a window slides in with PebbleOS's own window
-  push, showing the widget's icon, the question and YES or NO. Back is NO.
+- **Confirm:** before an irreversible action, Index asks in the conversation, an orange dot
+  on its question until you answer. The answers sit at the bottom of the screen as two pills
+  to tap, with PebbleOS's own tick and cross; Select opens them in a window that slides in
+  with PebbleOS's window push instead. Back is No.
 
 ## Build and run
 
@@ -79,5 +81,6 @@ manifest's FFI table.
 - Before installing on a watch, run the instrumented ten-turn reel on a fresh emulator and
   check the log for `memory full` or `App fault`.
 
-The microphone is drawn from PebbleOS's `Pebble_80x80_Microphone.svg` (Apache-2.0, Google
-LLC). App UUID: `f77fce2d-6016-47d5-84db-984335039681`.
+The microphone is drawn from PebbleOS's `Pebble_80x80_Microphone.svg`, and the tick and cross
+are PebbleOS's action bar icons, `action_bar_icon_check.png` and `action_bar_icon_x.png`,
+unchanged (Apache-2.0, Google LLC). App UUID: `f77fce2d-6016-47d5-84db-984335039681`.
