@@ -13,15 +13,16 @@
 // does over a notification, pushing the page out of the frame to the left.
 import Poco from "commodetto/Poco";
 import Debug from "debug";
+import Button from "pebble/button";
 import {setTimeout, clearTimeout, setInterval, clearInterval} from "timers";
 import * as assets from "assets";
 import {Animation, NORMAL_MAX, linear, easeInOut, easeOut, now, moook, MOOOK_MS, segmented,
         fraction} from "motion";
-import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, DARK_GRAY, VIVID_CERULEAN,
+import {render, WIDTH, HEIGHT, CONTENT_SIZE, MEDIUM, EXTRA_LARGE, WHITE, BLACK, DARK_GRAY, VIVID_CERULEAN,
         ink, font, drawText, textWidth, measure, resetPen, art, setBand, inBand} from "theme";
 import Thinking from "thinking";
 import IconTransition, {UNFOLD_MS, HOLD_MS} from "transition";
-import {drawWeather, DEMO as WEATHER_DEMO} from "weather";
+import {drawWeather, weatherHeight, DEMO as WEATHER_DEMO} from "weather";
 import {CARDS} from "cards";
 import {drawMic, drawMicScaled, Waveform, BARS as WAVE_BARS} from "mic";
 import Confirm from "confirm";
@@ -38,7 +39,7 @@ const MARGIN = 12, GAP = 8, BUBBLE_INSET = 38, PILL_RADIUS = 12, CARD_MARGIN = 6
 // away (the frame stops 40px in from the left and 19px up from the bottom) and the widget's
 // 36px icon sits in the cutout, rising 15px above the bottom edge and hanging 20px below
 // it; there is no other label.
-const CARD_RADIUS = 7, WIDGET_BODY = 154;
+const CARD_RADIUS = 7;
 const CUT_WIDTH = 40, CUT_HEIGHT = 19, ICON_ABOVE = 15, ICON_BELOW = 36 - 1 - ICON_ABOVE;
 // The rich bodies' bottom padding is measured from their last row's caps, so they clear
 // the cutout by 15px more for its descenders and the gap.
@@ -49,10 +50,10 @@ const WIDGET_ICON = 36;
 // hang into the gap below). A card's text, at its 10px inset, is centred between the
 // card's top edge and the top of its icon's ink, 11 rows each side (ICON_INK_TOP: the
 // row of each card icon's 36px box where the firmware starts drawing it, measured on the
-// emulator); a source line, if any, follows in small type and counts as the text's last
+// emulator); a source line, if any, follows in Gothic 18 (Emery's caption) and counts as the text's last
 // line. A bubble's text is centred between its edges, 10 rows each side.
 const CARD_TEXT_INSET = 10, CARD_TEXT_GAP = 11, BUBBLE_TEXT_GAP = 10;
-const SOURCE_GAP = 7, SOURCE_CAP_TOP = 5, SOURCE_CAP = 9;
+const SOURCE_GAP = 7, SOURCE_CAP_TOP = 7, SOURCE_CAP = 11;
 const ICON_INK_TOP = {beeper: 3, reminder: 0, home: 4, web: 2};
 const GCORNERS_ALL = 15;
 const SCROLL_MS = 250;   // a ScrollLayer's animated offset
@@ -130,6 +131,14 @@ const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
 // Timings, in milliseconds.
 const WAVE_STEP = 70, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
+// Index's question before it acts is answered with two pills under it, Yes then No: white
+// with a PILL_BORDER black border, the user's pills' corners, and as tall as a two-line
+// reply, to be tapped. Their words
+// are the action menu's font at the watch's text size (Gothic 24 Bold, or Gothic 28 at
+// Extra Large), its capitals PILL_CAP_TOP rows into the line and PILL_CAP tall. The one
+// taken shows pressed for PRESSED_MS before the result comes in.
+const PILL_BORDER = 2, PILL_CAP_TOP = 10, PILL_CAP = CONTENT_SIZE === EXTRA_LARGE ? 18 : 14;
+const PILL_LABELS = ["Yes", "No"], PRESSED_MS = 120;
 // On Up and Down, a card's icon travels as Timeline's pin icons do: its trailing edge
 // sets off a sixth of the way through (Timeline's point duration), so the icon stretches
 // along the travel and squashes into place.
@@ -201,10 +210,6 @@ export default class Chat {
       this.font = font("Gothic-Regular", 36);
       this.textTop = 14;
       this.textDescender = 6;
-    } else if (CONTENT_SIZE < MEDIUM) {
-      this.font = font("Gothic-Regular", 18);
-      this.textTop = 7;
-      this.textDescender = 3;
     } else {
       this.font = CONTENT_SIZE === MEDIUM ? font("Gothic-Bold", 24) : font("Gothic-Regular", 28);
       this.textTop = 10;
@@ -269,7 +274,7 @@ export default class Chat {
       x = CARD_MARGIN;
       w = WIDTH - 2 * CARD_MARGIN;
       if (body === "weather") {
-        h = WIDGET_BODY + BODY_CLEARANCE;
+        h = weatherHeight(WEATHER_DEMO, w) + BODY_CLEARANCE;
       } else if (body) {
         h = CARDS[body].height + BODY_CLEARANCE;
       } else {
@@ -500,22 +505,61 @@ export default class Chat {
 
   // --- asking before acting ---------------------------------------------------------------
 
-  // A result with a `confirm` ([the question, what Index says to a No]) asks first
-  // (confirm.js), once the cube has folded into its dot.
+  // A result with a `confirm` ([the question, what Index says to a No]) asks first, once the
+  // cube has folded into its dot: the question comes in as Index's reply, with the answers
+  // under it as two pills to tap. Select opens the answers in the window from the right
+  // (confirm.js), for when tapping is not possible; Back is No.
   askConfirm() {
     this.phase = "confirming";
     this.touchOrigin = undefined;
-    this.confirm.start(this.answer.confirm[0], CONFIRM_ICONS[this.answer.widget], this);
-    this.invalidate();
+    const pillFont = this.pillFont = CONTENT_SIZE === EXTRA_LARGE ? font("Gothic-Regular", 28) : font("Gothic-Bold", 24);
+    const dialog = this.dialog = this.makeResult(undefined, this.answer.confirm[0]);
+    const pills = this.pills = {type: "pills", x: MARGIN, w: WIDTH - 2 * MARGIN, h: this.bubbleHeight(PILL_LABELS),
+                                widths: [textWidth(PILL_LABELS[0], pillFont), textWidth(PILL_LABELS[1], pillFont)]};
+    this.items.push(dialog, pills);
+    this.layout();
+    this.setOffset(this.maxOffset, false);
+    this.reveal(dialog);
+    this.reveal(pills);
+    // Alloy calls every Button bound to a key, so while the window is open these do nothing:
+    // it takes Select and Back itself.
+    this.keys = new Button({
+      types: ["select", "back"],
+      single: true,
+      onPush: (down, type) => {
+        if (!down || this.confirm.active || this.phase !== "confirming") return;
+        if (type === "back") {
+          this.choose(false);
+        } else {
+          this.confirm.start(this.answer.confirm[0], CONFIRM_ICONS[this.answer.widget], this);
+          this.invalidate();
+        }
+      },
+    });
   }
 
-  // The window has gone, and the result comes in at once, the widget's icon unfolding in the
-  // dock with no more thinking: the action was approved. After a No, Index says so instead.
+  // The window has gone: with an answer, or with none after Back, the pills still there.
   confirmed(yes) {
-    this.phase = "answering";
     this.invalidate();
-    if (!yes) this.prepared = this.makeResult(undefined, this.answer.confirm[1]);
-    this.result();
+    if (yes !== undefined) this.choose(yes, true);
+  }
+
+  // An answer, from a pill, Back or the window (which has shown it taken already: `shown`).
+  // The question and its pills go with the user's words and the result comes in: after a Yes
+  // at once, the widget's icon unfolding in the dock with no more thinking, as the action was
+  // approved; after a No, Index says so instead.
+  choose(yes, shown) {
+    const pills = this.pills;
+    if (!pills || pills.chosen !== undefined || this.phase !== "confirming") return;
+    pills.chosen = yes ? 0 : 1;
+    this.phase = "answering";
+    this.keys.close();
+    this.keys = undefined;
+    this.invalidateArea(pills.y, pills.y + pills.h);
+    this.timer = setTimeout(() => {
+      if (!yes) this.prepared = this.makeResult(undefined, this.answer.confirm[1]);
+      this.result();
+    }, shown ? 0 : PRESSED_MS);
   }
 
   // The result has come in: the question fades and the result takes its place, rising in
@@ -531,9 +575,36 @@ export default class Chat {
       this.transition.start(WIDGETS[item.widget][1], DOCK_X, CUBE_Y, undefined, false, DOCK_X, CUBE_Y);
     // The question falls in on itself just before the result arrives (only its band
     // repainting); a flying icon lands the result itself, as its flight begins.
-    this.timer = setTimeout(() => this.poofQuery(this.items[index], () => {
-      if (!flying) this.landResult();
-    }), flying ? UNFOLD_MS + HOLD_MS - POOF_MS : 0);
+    this.timer = setTimeout(() => {
+      this.poofQuery(this.items[index], () => {
+        if (!flying) this.landResult();
+      });
+      // Index's question and its pills, if it asked, pale away with the user's words.
+      if (this.dialog) {
+        this.fadeOut(this.dialog);
+        this.fadeOut(this.pills);
+      }
+    }, flying ? UNFOLD_MS + HOLD_MS - POOF_MS : 0);
+  }
+
+  // An entry pales away over FADE_MS (only its band repainting), to be taken off the page
+  // when the result lands.
+  fadeOut(item) {
+    new Animation(FADE_MS, linear, progress => {
+      item.shade = progress < NORMAL_MAX / 3 ? 170 : progress < NORMAL_MAX * 2 / 3 ? 85 : 0;
+      this.invalidateArea(item.y, item.y + item.h);
+    }).schedule();
+  }
+
+  // An entry rises into place as it darkens in; only its band repaints.
+  reveal(item) {
+    item.shade = 0;
+    item.rise = RISE;
+    new Animation(REVEAL_MS, easeOut, progress => {
+      item.rise = RISE - (RISE * progress / NORMAL_MAX | 0);
+      item.shade = progress < NORMAL_MAX / 3 ? 85 : progress < NORMAL_MAX * 2 / 3 ? 170 : 255;
+      this.invalidateArea(item.y, item.y + item.h + RISE);
+    }).schedule();
   }
 
   // The user's words go (POOF_MS), then `done()`: the entry is hidden at once and
@@ -558,8 +629,10 @@ export default class Chat {
     // between turns is memory the next turn's art cannot have.
     this.pending = this.query = this.prepared = undefined;
     this.items.splice(index, 1, item);
-    item.shade = 0;
-    item.rise = RISE;
+    if (this.dialog) {
+      this.items.splice(this.items.indexOf(this.dialog), 2);
+      this.dialog = this.pills = this.pillFont = undefined;
+    }
     this.layout();
     // The page rests at its end, but never with a card's top tucked under the time bar,
     // unless the card is taller than the page above the dock: then its icon, where the
@@ -576,12 +649,7 @@ export default class Chat {
       this.landing = item;
       this.flightTop = this.flightBottom = undefined;
     }
-    // The result rises into place as it darkens in; only its band repaints.
-    new Animation(REVEAL_MS, easeOut, progress => {
-      item.rise = RISE - (RISE * progress / NORMAL_MAX | 0);
-      item.shade = progress < NORMAL_MAX / 3 ? 85 : progress < NORMAL_MAX * 2 / 3 ? 170 : 255;
-      this.invalidateArea(item.y, item.y + item.h + RISE);
-    }).schedule();
+    this.reveal(item);
     if (!this.transition.active) this.finishTurn();
   }
 
@@ -769,6 +837,20 @@ export default class Chat {
       this.confirm.touch(points);
       return;
     }
+    if (this.phase === "confirming") {
+      // A tap on a pill, begun once they have come in, answers.
+      const point = points[0], pills = this.pills;
+      if (point && !this.touchOrigin) {
+        this.touchOrigin = pills.shade === 255 ? point : undefined;
+      } else if (!point && this.touchOrigin) {
+        const {x, y} = this.touchOrigin, top = pills.y - this.offset;
+        this.touchOrigin = undefined;
+        if (y >= top && y < top + pills.h && x >= pills.x && x < pills.x + pills.w) {
+          this.choose(x < pills.x + (pills.w >> 1));
+        }
+      }
+      return;
+    }
     if (this.busy) {
       this.touchOrigin = undefined;
       return;
@@ -822,9 +904,9 @@ export default class Chat {
     // The time sits where the firmware's status bar puts it (STATUS_BAR_LAYER_HEIGHT 20,
     // Gothic 18: the digits from row 5, measured on the emery emulator); the Extra Large
     // bar centres its larger type.
+    // The time is digits and capitals, with no descenders: its ink is the cap height.
     const bearing = this.headerHeight === 28 ? 10 : 7;
-    const descender = this.headerHeight === 28 ? 4 : 3;
-    const inkHeight = this.clockFont.height - bearing + descender;
+    const inkHeight = this.headerHeight === 28 ? 14 : 11;
     this.clockTop = this.headerHeight === 28 ? ((this.headerHeight - 1 - inkHeight) / 2 | 0) - bearing
                                              : STATUS_DIGITS_TOP - bearing;
     this.clockX = (WIDTH - textWidth(this.clock, this.clockFont)) >> 1;
@@ -1131,10 +1213,32 @@ export default class Chat {
       if (step === 3 && color !== VIVID_CERULEAN) {
         this.drawLines(item.lines, color, x + 8, y + 1 + BUBBLE_TEXT_GAP - this.textTop);
       }
+    } else if (item.type === "pills") {
+      this.drawPills(item, y);
     } else if (item.widget) {
       this.drawCard(item, y);
     } else {
       this.drawBubble(x, y, w, h, item.lines, shade, false);
+    }
+  }
+
+  // The answers under Index's question: Yes and No side by side, the one taken pressed
+  // (black, its word white).
+  drawPills(item, y) {
+    const {x, w, h, shade} = item;
+    if (!shade) return;
+    const pill = (w - GAP) >> 1;
+    for (let index = 0; index < 2; index++) {
+      const left = x + index * (pill + GAP), pressed = item.chosen === index;
+      render.drawRoundRect(left, y, pill, h, ink(shade), PILL_RADIUS, GCORNERS_ALL);
+      if (!pressed) {
+        render.drawRoundRect(left + PILL_BORDER, y + PILL_BORDER, pill - 2 * PILL_BORDER, h - 2 * PILL_BORDER, WHITE,
+                             PILL_RADIUS - PILL_BORDER, GCORNERS_ALL);
+      }
+      if (shade === 255) {
+        drawText(PILL_LABELS[index], this.pillFont, pressed ? WHITE : BLACK, left + ((pill - item.widths[index]) >> 1),
+                 y + ((h - PILL_CAP) >> 1) - PILL_CAP_TOP);
+      }
     }
   }
 
@@ -1222,7 +1326,7 @@ export default class Chat {
       const top = y + 1 + CARD_TEXT_GAP;
       this.drawLines(item.lines, ink(shade), x + CARD_TEXT_INSET, top - this.textTop);
       if (source) {
-        drawText(source, font("Gothic-Regular", 14), quiet, x + CARD_TEXT_INSET,
+        drawText(source, font("Gothic-Regular", 18), quiet, x + CARD_TEXT_INSET,
                  top + this.textHeight(item.lines) + SOURCE_GAP - SOURCE_CAP_TOP);
       }
     }

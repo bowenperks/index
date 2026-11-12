@@ -12,8 +12,9 @@ export const render = new Poco(screen, {displayListLength: 0, pixels: screen.wid
 export const WIDTH = render.width;
 export const HEIGHT = render.height;
 
-// The watch's text size: 0 small, 1 medium, 2 large (Emery's default), 3 extra large.
-export const SMALL = 0, MEDIUM = 1, LARGE = 2, EXTRA_LARGE = 3;
+// The watch's text size, as Emery reports it: 1 medium, 2 large (its default), 3 extra
+// large. Emery cannot show the small size, and never reports it.
+export const MEDIUM = 1, LARGE = 2, EXTRA_LARGE = 3;
 let contentSize = LARGE;
 try {
   contentSize = Natives.contentSize();
@@ -103,8 +104,10 @@ export const stats = {texts: 0, shift: 0, icons: 0, strip: 0, rest: 0, stretch: 
 
 export const drawText = (text, f, color, x, top) => {
   const found = metric(f);
-  // A line's ink lies within its box, the font's height from its top; two rows of slack.
-  if (top + found[1] + 2 <= bandTop || top - 2 >= bandBottom || x >= bandRight) return;
+  // A line's ink starts inside its box, but its descenders hang below it, by up to 6 rows
+  // in Gothic 36 (4 in Gothic 24 and 28): a line ending that far above the band still
+  // reaches it.
+  if (top + found[1] + 6 <= bandTop || top - 2 >= bandBottom || x >= bandRight) return;
   // @strip profile
   stats.texts++;
   // @endstrip

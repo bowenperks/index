@@ -99,7 +99,7 @@ const map = () => {
   y += MAP_HEIGHT + PADDING;
   text("Elizabeth", "Gothic-Bold", 24, 10, 14, 9);
   text("10 Berners St, London", "Gothic-Regular", 18, 7, 11, 6);
-  text("Updated 2 min ago", "Gothic-Regular", 14, 5, 9, 0, 1);
+  text("Updated 2 min ago", "Gothic-Regular", 18, 7, 11, 0, 1);
 };
 
 // Runs a card's body: draws it into `body` ({x, y, w}) at `opacity`, or with no body only

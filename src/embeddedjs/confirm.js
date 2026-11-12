@@ -1,17 +1,18 @@
-// Asks the user to approve an action that cannot be taken back, such as unlocking a door or
-// sending someone a message, before Index takes it. Any result can ask first: give it a
-// `confirm` (prompts.js) and Chat shows this window when the result is ready.
+// The answers to a question Index asks before an action that cannot be taken back, such as
+// unlocking a door or sending someone a message, for when they cannot be tapped: Chat asks
+// in the conversation, with the answers as pills under the question, and Select opens this.
 //
 // It is PebbleOS's action menu opened over a notification. A black window comes in from the
 // right with the firmware's own window push and pushes the page out of the frame to the
 // left, leaving the page's right edge in a strip. At the top of the window is the widget's
 // icon, drawn white; below it the question, which says exactly what will happen and to what
 // ("Unlock the front door?"); and at the bottom the answers, YES above NO, listed as the
-// action menu lists its items. Up and Down move between them, Select takes the one in white,
-// and Back is NO. There is no timeout. The taken answer shows as a menu cell's highlight,
-// then the window goes back the way it came.
+// action menu lists its items. Up and Down move between them and Select takes the one in
+// white, which shows as a menu cell's highlight before the window goes back the way it came.
+// Back closes it without an answer, as it closes the action menu. There is no timeout.
 //
-// To use it from another page: construct it with `invalidate()` (repaint) and `done(yes)`,
+// To use it from another page: construct it with `invalidate()` (repaint) and `done(yes)`
+// (true, false, or undefined when closed without an answer),
 // call start() when the question is ready, and while it is `active` hand it the page's frames
 // (render) and touches (touch). While it asks it adds a Button for Select, Up, Down and Back;
 // Alloy calls every Button bound to a key, so the page's own Select, Up and Down must do
@@ -43,8 +44,9 @@ const BAR = 49, ICON = 25, ICON_TOP = (BAR - ICON) >> 1;
 const ROW = 36, PAD = 8, INSET = 10;
 const ANSWERS = 2 * ROW + 2 * PAD, ANSWERS_TOP = HEIGHT - ANSWERS;
 // The question keeps GAP clear of the bar and the answers. Too long for the page's font, it
-// is set in Gothic 18 (its capitals start SMALL_TOP rows into the line) and ellipsised.
-const GAP = 6, SMALL_TOP = 7;
+// steps down Gothic's sizes ([size, rows from a line's top to its capitals]) until it fits,
+// and in the last, Gothic 18, it is ellipsised.
+const GAP = 6, SMALLER = [[28, 10], [24, 10], [18, 7]];
 // The answers' font, the action menu's at the watch's text size (Gothic 24 Bold, or Gothic
 // 28 at Extra Large), and where its capitals start in the line and how tall they are.
 const EXTRA = CONTENT_SIZE === EXTRA_LARGE;
@@ -71,11 +73,13 @@ export default class Confirm {
     const room = ANSWERS_TOP - BAR - 2 * GAP, width = PANE - 2 * INSET;
     let f = page.font, lineHeight = page.lineHeight, textTop = page.textTop;
     let lines = wrap(question, f, width);
-    if (lines.length * lineHeight - textTop > room) {
-      f = font("Gothic-Regular", 18);
+    for (let index = 0; index < SMALLER.length && lines.length * lineHeight - textTop > room; index++) {
+      const size = SMALLER[index][0], last = index === SMALLER.length - 1;
+      if (size >= page.lineHeight && !last) continue;
+      f = font("Gothic-Regular", size);
       lineHeight = f.height;
-      textTop = SMALL_TOP;
-      lines = wrap(question, f, width, (room + textTop) / lineHeight | 0);
+      textTop = SMALLER[index][1];
+      lines = last ? wrap(question, f, width, (room + textTop) / lineHeight | 0) : wrap(question, f, width);
     }
     this.page = page;
     this.icon = icon;
@@ -92,7 +96,7 @@ export default class Confirm {
     this.reach = Math.max(...this.widths, ...this.labelWidths);
     this.choice = YES;
     this.answered = this.drawn = this.touchOrigin = undefined;
-    this.changed = false;
+    this.changed = this.closing = false;
     this.active = this.moving = true;
     this.x = WIDTH;
     this.animation = new Animation(PUSH_MS, linear, progress => {
@@ -109,7 +113,7 @@ export default class Confirm {
       single: true,
       onPush: (down, type) => {
         if (!down) return;
-        if (type === "back") this.answer(NO);
+        if (type === "back") this.finish(undefined);
         else if (type === "select") this.press();
         else this.pick(type === "up" ? YES : NO);
       },
@@ -126,27 +130,30 @@ export default class Confirm {
   // The answer in white is taken, but not before the window has landed: a press meant for
   // something else cannot answer a question that has not been read.
   press() {
-    if (!this.moving) this.answer(this.choice);
+    if (!this.moving) this.finish(this.choice);
   }
 
   pick(choice) {
-    if (!this.active || this.answered !== undefined || choice === this.choice) return;
+    if (!this.active || this.closing || choice === this.choice) return;
     this.choice = choice;
     this.changed = true;
     this.invalidate();
   }
 
-  // Back may come while the window is still arriving: as in the firmware, it lands at once
-  // and then goes.
-  answer(choice) {
-    if (!this.active || this.answered !== undefined) return;
+  // Ends the asking with the answer taken, shown a moment first, or with none (Back). Back
+  // may come while the window is still arriving: as in the firmware, it lands at once and
+  // then goes.
+  finish(choice) {
+    if (!this.active || this.closing) return;
+    this.closing = true;
     if (this.animation) {
       this.animation.unschedule();
       this.animation = undefined;
       this.moving = false;
       this.moveTo(STRIP);
     }
-    this.answered = this.choice = choice;
+    this.answered = choice;
+    if (choice !== undefined) this.choice = choice;
     this.changed = true;
     this.invalidate();
     setTimeout(() => {
@@ -158,9 +165,9 @@ export default class Confirm {
         this.active = this.moving = false;
         this.animation = this.buttons = this.page = this.lines = this.widths = this.labelWidths = this.font =
           this.itemFont = undefined;
-        this.done(this.answered === YES);
+        this.done(choice === undefined ? undefined : choice === YES);
       }).schedule();
-    }, PRESSED_MS);
+    }, choice === undefined ? 0 : PRESSED_MS);
   }
 
   // A Touch sensor sample ([{x, y}] while the finger is down, [] when it lifts). A tap on an
@@ -168,7 +175,7 @@ export default class Confirm {
   touch(points) {
     const point = points[0], origin = this.touchOrigin;
     if (point && !origin) {
-      this.touchOrigin = this.moving || point.x < this.x + EDGE ? IGNORED : point;
+      this.touchOrigin = this.moving || this.closing || point.x < this.x + EDGE ? IGNORED : point;
     } else if (!point && origin) {
       this.touchOrigin = undefined;
       const y = origin.y - ANSWERS_TOP;
