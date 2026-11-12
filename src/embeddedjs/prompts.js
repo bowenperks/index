@@ -13,10 +13,10 @@ export const DEMO = [
   ["Unlock the front door.", "home", "Unlocked the front door",
    ["Unlock the front door?", "The front door stays locked"]],
   ["Tell Sam I'm running late.", "beeper", "Sent 'running late' to Sam",
-   ["Send 'running late' to Sam?", "Not sent"]],
+   ["Send 'running late' to Sam?", "Message to Sam not sent"]],
   ["Send a message to my wife. Roz just said there's a bike in the distance.", "beeper",
    "Sent 'Roz just said there's a bike in the distance' to your wife",
-   ["Send 'Roz just said there's a bike in the distance' to your wife?", "Not sent"]],
+   ["Send 'Roz just said there's a bike in the distance' to your wife?", "Message to your wife not sent"]],
   ["Remind me tomorrow at 4 pm to adjust the bike brakes.", "reminder", "Reminder set for 4pm tomorrow"],
   ["Turn the living room lights off.", "home", "Turned lights off"],
   ["What do I have to do today?", "today", "3 to-dos and 2 events today"],
@@ -48,7 +48,7 @@ export const resolve = question => {
   if (!exact && message) {
     const to = `${message[1] ? "your " : ""}${message[2]}`;
     return {widget: "beeper", text: `Sent '${message[3]}' to ${to}`,
-            confirm: [`Send '${message[3]}' to ${to}?`, "Not sent"]};
+            confirm: [`Send '${message[3]}' to ${to}?`, `Message to ${to} not sent`]};
   }
   const found = exact ?? DEMO[KEYWORDS.find(([word]) => spoken.includes(word))?.[1]];
   if (found) return {widget: found[1], text: found[2], confirm: found[3]};

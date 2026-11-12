@@ -133,6 +133,10 @@ const POOF_WORDS_MS = 90, POOF_COLLAPSE_MS = 240, POOF_MS = POOF_WORDS_MS + POOF
 const POOF_PALE = 0.55;
 // Day labels between the history's days: Gothic Bold 18's cap ink, centred in the row.
 const DAY_HEIGHT = 22, DAY_CAP_TOP = 7, DAY_CAP = 11;
+// A denied request is not a reply but a break in the conversation, centred like a day
+// label: DENIED in the system theme's header font, then what Index says to it in its
+// caption font, dark grey, STATUS_PAD above and below and STATUS_GAP between them.
+const DENIED = "Request denied", STATUS_PAD = 6, STATUS_GAP = 6;
 // Timings, in milliseconds.
 const WAVE_STEP = 70, THINK_MIN = 800;
 const FADE_MS = 200, REVEAL_MS = 300, RISE = 40;
@@ -243,6 +247,25 @@ export default class Chat {
 
   makeResult(widget, text) {
     return this.size({type: "result", widget: WIDGETS[widget] ? widget : undefined}, text);
+  }
+
+  // The entry for a denied request: DENIED, then `text`, each line centred. Its fonts are the
+  // system theme's (system_theme.c) at the watch's text size, Header and Caption: Gothic 18
+  // Bold and 14 at Medium, 24 Bold and 18 at Large, 28 Bold and 24 at Extra Large. `style`
+  // keeps each font with its capitals' top and height, and the caption's line height and
+  // descenders.
+  makeDenied(text) {
+    const extraLarge = CONTENT_SIZE === EXTRA_LARGE, medium = CONTENT_SIZE === MEDIUM;
+    const header = extraLarge ? font("Gothic-Bold", 28) : font("Gothic-Bold", medium ? 18 : 24);
+    const caption = font("Gothic-Regular", extraLarge ? 24 : medium ? 14 : 18);
+    const style = [header, medium ? 7 : 10, extraLarge ? 18 : medium ? 11 : 14,
+                   caption, extraLarge ? 10 : medium ? 5 : 7, extraLarge ? 14 : medium ? 9 : 11,
+                   caption.height, extraLarge ? 4 : medium ? 2 : 3];
+    const lines = measure(text, caption, WIDTH - 2 * MARGIN).lines;
+    return {type: "status", x: 0, w: WIDTH, shade: 255, rise: 0, style, sub: lines,
+            titleX: (WIDTH - textWidth(DENIED, header)) >> 1,
+            subX: lines.map(line => (WIDTH - textWidth(line, caption)) >> 1),
+            h: STATUS_PAD + style[2] + STATUS_GAP + (lines.length - 1) * style[6] + style[5] + style[7] + STATUS_PAD};
   }
 
   textHeight(lines) {
@@ -573,7 +596,7 @@ export default class Chat {
     this.timer = setTimeout(() => this.movePills(false, () => {
       this.pills = undefined;
       this.invalidateDock();
-      if (!yes) this.prepared = this.makeResult(undefined, this.answer.confirm[1]);
+      if (!yes) this.prepared = this.makeDenied(this.answer.confirm[1]);
       this.result();
     }), shown ? 0 : PRESSED_MS);
   }
@@ -1231,6 +1254,15 @@ export default class Chat {
   drawItem(item, y) {
     const {x, w, h, shade} = item;
     if (item.type === "spacer") return;
+    if (item.type === "status") {
+      // A denied request: its header in ink, what Index says to it in the quieter grey.
+      const style = item.style, sub = item.sub, top = y + STATUS_PAD + style[2] + STATUS_GAP - style[4];
+      drawText(DENIED, style[0], ink(shade), item.titleX, y + STATUS_PAD - style[1]);
+      for (let index = 0; index < sub.length; index++) {
+        drawText(sub[index], style[3], ink(Math.min(shade, 170)), item.subX[index], top + index * style[6]);
+      }
+      return;
+    }
     if (item.type === "day") {
       drawText(item.text, font("Gothic-Bold", 18), DARK_GRAY, item.textX,
                y + ((DAY_HEIGHT - DAY_CAP) >> 1) - DAY_CAP_TOP);

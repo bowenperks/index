@@ -16,7 +16,8 @@ All results are hardcoded: nothing is really sent, set or switched.
 - **Confirm:** before an irreversible action, Index asks in the conversation, an orange dot
   on its question until you answer. The answers sit at the bottom of the screen as two pills
   to tap, with PebbleOS's own tick and cross; Select opens them in a window that slides in
-  with PebbleOS's window push instead. Back is No.
+  with PebbleOS's window push instead. Back is No. A No is not a reply but a centred
+  "Request denied" across the conversation.
 
 ## Build and run
 
